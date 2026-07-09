@@ -112,11 +112,3 @@ CLI scripts like `index_repo.py` or the eval.
 | `frontend/` | Minimal Next.js chat UI. |
 | `llm.py` | Model choices in one place (agent, judge, embeddings). |
 | `selftest.py` | Offline checks for everything that doesn't need an API key. |
-
-## Notes for myself
-
-Things I should be able to explain without looking: what an embedding is and why cosine
-distance, why chunks overlap and why the separators list starts with `\nclass `/`\ndef `,
-how the ReAct loop decides to call a tool, the difference between naive RAG and the agent,
-how I built ground truth and why the "should say I don't know" questions matter, and the
-limits of LLM-as-judge.
