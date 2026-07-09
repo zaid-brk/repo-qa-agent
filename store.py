@@ -12,6 +12,7 @@ small text file so separate CLI runs agree on it.
 Note: local mode allows one process at a time (it holds a file lock). Stop the
 API server before running index_repo.py / run_eval.py from the CLI.
 """
+import atexit
 import uuid
 from pathlib import Path
 
@@ -21,6 +22,7 @@ from qdrant_client.models import Distance, VectorParams, PointStruct
 from llm import get_embeddings, EMBED_DIM
 
 client = QdrantClient(path="qdrant_storage")
+atexit.register(client.close)   # clean shutdown; avoids a noisy destructor warning at exit
 
 ACTIVE_FILE = Path("active_repo.txt")
 

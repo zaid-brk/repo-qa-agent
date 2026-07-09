@@ -73,5 +73,3 @@ if __name__ == "__main__":
     test_qdrant_roundtrip()
     test_imports_without_key()
     print("\nAll offline checks passed.")
-    import store
-    store.client.close()   # explicit close avoids a noisy qdrant-client warning at exit
