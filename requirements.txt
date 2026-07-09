@@ -1,0 +1,9 @@
+langchain
+langchain-openai
+langchain-text-splitters
+langgraph
+qdrant-client
+fastapi
+uvicorn[standard]
+python-dotenv
+tiktoken
