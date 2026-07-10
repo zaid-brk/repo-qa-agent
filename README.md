@@ -4,7 +4,7 @@ I built a web app where you paste a GitHub repo URL, it indexes the code, and th
 ask questions like "where is authentication handled?" or "what does raise_for_status do?"
 and get answers grounded in the actual source, with the files cited. Under the hood it's
 retrieval-augmented generation (RAG) upgraded to an agent that can search, list files, and
-read whole files across multiple hops — plus a 50-question evaluation harness that measures
+read whole files across multiple hops, plus a 50-question evaluation harness that measures
 how accurate it actually is.
 
 ## How it works
