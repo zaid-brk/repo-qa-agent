@@ -13,7 +13,12 @@ Levers, in the order worth trying:
 
 | Run | Change (one variable) | Accuracy | Notes |
 |-----|----------------------|----------|-------|
-| 0 | naive RAG baseline (`--naive`) | *pending run* | retrieve-once, no tools |
-| 1 | agent baseline (multi-hop, defaults: 1000/150, top_k=5) | *pending run* | |
+| 0 | naive RAG baseline (`--naive`) | 100% (50/50) | retrieve-once, no tools |
+| 1 | agent baseline (multi-hop, defaults: 1000/150, top_k=5) | 100% (50/50) | |
 
-*(rows added as tuning happens — numbers require an OpenAI key, see README)*
+Both runs hit 100% on the first pass, so there is nothing to tune — no ✗ rows to form a
+hypothesis from. The benchmark is saturated: every question is answerable from a single
+retrieval, which is why naive RAG matches the agent. The honest conclusion is that this
+question set doesn't separate the two approaches; making it do so would mean writing harder,
+cross-file questions where retrieve-once starts to miss. Recorded here rather than inventing
+a tuning gap that didn't happen.

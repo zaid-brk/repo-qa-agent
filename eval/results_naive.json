@@ -1,0 +1,452 @@
+[
+  {
+    "id": 1,
+    "repo": "requests",
+    "question": "Which file defines the Session class?",
+    "expected": "sessions.py (src/requests/sessions.py)",
+    "type": "locational",
+    "actual": "The Session class is defined in the file `src/requests/sessions.py`.\n\n",
+    "correct": true
+  },
+  {
+    "id": 2,
+    "repo": "requests",
+    "question": "What does the max_redirects setting control, and what is its default value?",
+    "expected": "the maximum number of redirects followed before erroring; defaults to DEFAULT_REDIRECT_LIMIT which is 30",
+    "type": "explanatory",
+    "actual": "The `max_redirects` setting controls the maximum number of redirects allowed during a request. If the request exceeds this limit, a `TooManyRedirects` exception is raised. Its default value is 30.\n\nFiles used: \n- `src/requests/sessions.py`\n- `tests/test_requests.py`",
+    "correct": true
+  },
+  {
+    "id": 3,
+    "repo": "requests",
+    "question": "What underlying HTTP library does requests build on for connection handling?",
+    "expected": "urllib3",
+    "type": "factual",
+    "actual": "The underlying HTTP library that Requests builds on for connection handling is `urllib3`.\n\nFile used: `src/requests/__init__.py`",
+    "correct": true
+  },
+  {
+    "id": 4,
+    "repo": "requests",
+    "question": "Which file implements the HTTPAdapter class?",
+    "expected": "adapters.py (src/requests/adapters.py)",
+    "type": "locational",
+    "actual": "The HTTPAdapter class is implemented in the file `src/requests/adapters.py`.\n\nCited file: `src/requests/adapters.py`",
+    "correct": true
+  },
+  {
+    "id": 5,
+    "repo": "requests",
+    "question": "What is the default number of retries for an HTTPAdapter?",
+    "expected": "0 (DEFAULT_RETRIES = 0 in adapters.py)",
+    "type": "factual",
+    "actual": "The default number of retries for an HTTPAdapter is not specified in the provided code snippets. However, it is mentioned that by default, Requests does not retry failed connections. \n\nFiles used: \n- src/requests/adapters.py",
+    "correct": true
+  },
+  {
+    "id": 6,
+    "repo": "requests",
+    "question": "Which exception is raised when a request exceeds the maximum number of redirects?",
+    "expected": "TooManyRedirects (defined in exceptions.py, a subclass of RequestException)",
+    "type": "factual",
+    "actual": "The exception raised when a request exceeds the maximum number of redirects is `TooManyRedirects`.\n\nFiles used: \n- `src/requests/exceptions.py`\n- `src/requests/sessions.py`\n- `tests/test_requests.py`",
+    "correct": true
+  },
+  {
+    "id": 7,
+    "repo": "requests",
+    "question": "What data structure does requests use to store HTTP headers so lookups are case-insensitive?",
+    "expected": "CaseInsensitiveDict, defined in structures.py",
+    "type": "factual",
+    "actual": "The `requests` library uses a case-insensitive dictionary to store HTTP headers. This is indicated in the comment within the `__init__` method of the `Session` class in the `src/requests/sessions.py` file, which states that `self.headers` is \"A case-insensitive dictionary of headers to be sent on each Request sent from this Session.\"\n\nFiles used: `src/requests/sessions.py`",
+    "correct": true
+  },
+  {
+    "id": 8,
+    "repo": "requests",
+    "question": "Which file contains the HTTPBasicAuth and HTTPDigestAuth classes?",
+    "expected": "auth.py (src/requests/auth.py)",
+    "type": "locational",
+    "actual": "The HTTPBasicAuth and HTTPDigestAuth classes are found in the `requests.auth` module, which is referenced in the code snippets. However, the specific file containing the definitions of these classes is not provided in the snippets.\n\nFiles used: `tests/test_requests.py`, `tests/test_lowlevel.py`",
+    "correct": true
+  },
+  {
+    "id": 9,
+    "repo": "requests",
+    "question": "What class does requests use to store cookies, and which file defines it?",
+    "expected": "RequestsCookieJar in cookies.py; it subclasses CookieJar and behaves like a dict",
+    "type": "factual",
+    "actual": "The class that requests uses to store cookies is `RequestsCookieJar`, and it is defined in the file `src/requests/cookies.py`. \n\nCited files: `src/requests/cookies.py`, `src/requests/sessions.py`.",
+    "correct": true
+  },
+  {
+    "id": 10,
+    "repo": "requests",
+    "question": "What does Response.raise_for_status() do?",
+    "expected": "raises an HTTPError if the response status code is a 4xx client error or 5xx server error, otherwise does nothing",
+    "type": "explanatory",
+    "actual": "`Response.raise_for_status()` raises an `HTTPError` if the response status code indicates a client error (400-499). It attempts to decode the reason for the error from bytes to a string, first using UTF-8 and then falling back to ISO-8859-1 if necessary.\n\nFile used: `src/requests/models.py`",
+    "correct": true
+  },
+  {
+    "id": 11,
+    "repo": "requests",
+    "question": "What lifecycle hooks does requests support?",
+    "expected": "only one hook event: 'response' (HOOKS list in hooks.py)",
+    "type": "factual",
+    "actual": "Requests supports the following lifecycle hook:\n\n- `response`: The response generated from a Request.\n\nThis information is found in the file `src/requests/hooks.py`.",
+    "correct": true
+  },
+  {
+    "id": 12,
+    "repo": "requests",
+    "question": "How does connection pooling work in requests?",
+    "expected": "HTTPAdapter (adapters.py) wraps urllib3's PoolManager, which keeps per-host connection pools so connections are reused across requests instead of reopened",
+    "type": "explanatory",
+    "actual": "Connection pooling in the `requests` library works by caching a specified number of connection pools, which are managed by `urllib3`. The parameters for connection pooling include `pool_connections`, which determines how many connection pools to cache, and `pool_maxsize`, which sets the maximum number of connections that can be saved in each pool. When a request is made, the library builds connection pool key attributes based on the request and other parameters, allowing it to select an appropriate connection from the pool.\n\nThe relevant code snippets are from `src/requests/adapters.py`.",
+    "correct": true
+  },
+  {
+    "id": 13,
+    "repo": "requests",
+    "question": "When you call requests.get(...), what happens under the hood?",
+    "expected": "the module-level get() in api.py calls request('get', ...), which creates a Session and calls Session.request, which builds a PreparedRequest and sends it through an HTTPAdapter",
+    "type": "explanatory",
+    "actual": "When you call `requests.get(...)`, it internally uses the `requests.request` method with the 'GET' method specified. This method creates a session using `sessions.Session()` and then calls `session.request(method=method, url=url, **kwargs)`, which handles the actual HTTP request.\n\nThe relevant code snippets are from:\n- `src/requests/api.py`",
+    "correct": true
+  },
+  {
+    "id": 14,
+    "repo": "requests",
+    "question": "Which file defines the PreparedRequest and Response classes?",
+    "expected": "models.py (src/requests/models.py)",
+    "type": "locational",
+    "actual": "The `PreparedRequest` and `Response` classes are defined in the `src/requests/models.py` file. \n\nFile used: `src/requests/models.py`",
+    "correct": true
+  },
+  {
+    "id": 15,
+    "repo": "requests",
+    "question": "Where are HTTP status code constants like codes.ok defined?",
+    "expected": "status_codes.py",
+    "type": "locational",
+    "actual": "HTTP status code constants like `codes.ok` are defined in the `src/requests/status_codes.py` file. The `codes` object maps common names for HTTP statuses to their numerical codes. \n\nFiles used: `src/requests/status_codes.py`",
+    "correct": true
+  },
+  {
+    "id": 16,
+    "repo": "requests",
+    "question": "What relational database does requests use to persist sessions between runs?",
+    "expected": "none \u2014 requests does not persist sessions to any database; the correct answer is to say this isn't in the codebase",
+    "type": "should_say_idk",
+    "actual": "I don't know. \n\nFiles used: src/requests/sessions.py, tests/test_requests.py, README.md, HISTORY.md",
+    "correct": true
+  },
+  {
+    "id": 17,
+    "repo": "requests",
+    "question": "What is the personal phone number of the project's lead maintainer?",
+    "expected": "not in the codebase \u2014 the assistant should say it doesn't know / the information isn't there",
+    "type": "should_say_idk",
+    "actual": "I don't know. \n\nFiles used: .github/AI_POLICY.md, .github/SECURITY.md",
+    "correct": true
+  },
+  {
+    "id": 18,
+    "repo": "click",
+    "question": "Which file defines the Command and Group classes?",
+    "expected": "core.py (src/click/core.py)",
+    "type": "locational",
+    "actual": "The Command and Group classes are defined in the file `src/click/core.py`.\n\nCited files: `src/click/core.py`",
+    "correct": true
+  },
+  {
+    "id": 19,
+    "repo": "click",
+    "question": "What is the relationship between Group and Command?",
+    "expected": "Group subclasses Command \u2014 a Group is a command that can have subcommands attached",
+    "type": "factual",
+    "actual": "The relationship between `Group` and `Command` is that `Group` is a subclass of `Command`. This means that a `Group` is a type of `Command` that can nest other commands or groups.\n\nFile used: `src/click/core.py`",
+    "correct": true
+  },
+  {
+    "id": 20,
+    "repo": "click",
+    "question": "Which decorator turns a function into a click command, and where is it defined?",
+    "expected": "@click.command / the command decorator, defined in decorators.py",
+    "type": "factual",
+    "actual": "The decorator that turns a function into a Click command is `@click.command()`. It is defined in the `docs/quickstart.md` file.\n\nCited file: `docs/quickstart.md`",
+    "correct": true
+  },
+  {
+    "id": 21,
+    "repo": "click",
+    "question": "What does the pass_context decorator do?",
+    "expected": "makes click pass the current Context object as the first argument to the decorated callback (defined in decorators.py)",
+    "type": "explanatory",
+    "actual": "The `pass_context` decorator marks a callback as wanting to receive the current context object as the first argument. It allows the decorated function to access the context, which can be useful for managing state or configuration within the command line interface.\n\nFile used: `src/click/decorators.py`",
+    "correct": true
+  },
+  {
+    "id": 22,
+    "repo": "click",
+    "question": "Which file defines the Context class?",
+    "expected": "core.py",
+    "type": "locational",
+    "actual": "The Context class is defined in the file `src/click/core.py`.\n\n",
+    "correct": true
+  },
+  {
+    "id": 23,
+    "repo": "click",
+    "question": "Why would you use click.echo instead of plain print?",
+    "expected": "echo (in utils.py) handles encoding errors, supports both bytes and str, and strips/handles ANSI color codes depending on whether output is a terminal \u2014 safer cross-platform output",
+    "type": "explanatory",
+    "actual": "You would use `click.echo` instead of plain `print` because `click.echo` is designed to support different terminal environments consistently and provides robust error handling, especially in cases where the terminal is misconfigured. It applies error correction to avoid issues like `UnicodeError`, supports ANSI colors and styles, and automatically removes styles if the output stream is a file. Additionally, on Windows, `click.echo` handles unicode output more effectively than `print`, which can be affected by the terminal's configuration.\n\nFiles used: `docs/utils.md`, `docs/quickstart.md`, `docs/wincmd.md`.",
+    "correct": true
+  },
+  {
+    "id": 24,
+    "repo": "click",
+    "question": "What base class do custom parameter types extend, and in which file?",
+    "expected": "ParamType in types.py",
+    "type": "factual",
+    "actual": "Custom parameter types extend the base class `ParamType`. This information is found in the file `docs/parameter-types.md`.",
+    "correct": true
+  },
+  {
+    "id": 25,
+    "repo": "click",
+    "question": "Which exception does click raise for an invalid parameter value?",
+    "expected": "BadParameter (exceptions.py), a subclass of UsageError",
+    "type": "factual",
+    "actual": "The exception that Click raises for an invalid parameter value is `BadParameter`. \n\nFile used: `docs/advanced.md`",
+    "correct": true
+  },
+  {
+    "id": 26,
+    "repo": "click",
+    "question": "What class does click provide for testing CLI commands, and where is it?",
+    "expected": "CliRunner in testing.py \u2014 it invokes commands in-process and captures output",
+    "type": "factual",
+    "actual": "Click provides the `CliRunner` class for testing CLI commands. It is located in the `src/click/testing.py` file.\n\nFiles used: `src/click/testing.py`, `docs/testing.md`",
+    "correct": true
+  },
+  {
+    "id": 27,
+    "repo": "click",
+    "question": "Where is the interactive prompt() function implemented?",
+    "expected": "termui.py",
+    "type": "locational",
+    "actual": "The `prompt()` function is implemented in the `src/click/termui.py` file.\n\nCited file: `src/click/termui.py`",
+    "correct": true
+  },
+  {
+    "id": 28,
+    "repo": "click",
+    "question": "Which files implement the progress bar feature?",
+    "expected": "the progressbar() function in termui.py, with the ProgressBar class implementation in _termui_impl.py",
+    "type": "locational",
+    "actual": "The progress bar feature is implemented in the following files:\n\n1. `examples/termui/termui.py`\n2. `src/click/termui.py`\n\nThese files contain the relevant code for creating and managing progress bars.",
+    "correct": true
+  },
+  {
+    "id": 29,
+    "repo": "click",
+    "question": "Where does click implement shell tab-completion?",
+    "expected": "shell_completion.py",
+    "type": "locational",
+    "actual": "Click implements shell tab-completion in the `click.shell_completion` module. It provides support for Bash, Zsh, and Fish, and allows for customization and integration with other shells through subclasses of `ShellComplete` registered with `add_completion_class`. \n\nThe relevant files used are:\n- `docs/shell-completion.md`\n- `docs/api.md`",
+    "correct": true
+  },
+  {
+    "id": 30,
+    "repo": "click",
+    "question": "How does click parse command-line arguments internally?",
+    "expected": "parser.py contains the internal option parser (_Option/_Argument and parsing-state classes) that Command uses to match argv tokens to declared options and arguments",
+    "type": "explanatory",
+    "actual": "Click parses command-line arguments internally by implementing its own parsing mechanism rather than relying on `optparse` or `argparse`. It is designed to handle command-line interfaces in a way that allows for proper nesting of commands and provides a strong invocation context. This approach helps Click manage the order of arguments and ensures that callbacks are invoked after the values have been fully converted, which differs from how `optparse` handles callbacks during the parsing step.\n\nFiles used: \n- `docs/why.md`\n- `docs/click-concepts.md`",
+    "correct": true
+  },
+  {
+    "id": 31,
+    "repo": "click",
+    "question": "What decorator adds a --version flag to a command?",
+    "expected": "version_option, defined in decorators.py",
+    "type": "factual",
+    "actual": "The decorator that adds a `--version` flag to a command is `@click.option('--version', is_flag=True, callback=print_version, expose_value=False, is_eager=True)` as shown in the example in `docs/advanced.md`. Additionally, the `version_option` function in `src/click/decorators.py` also describes how to add a `--version` option.\n\nFiles used: `docs/advanced.md`, `src/click/decorators.py`",
+    "correct": true
+  },
+  {
+    "id": 32,
+    "repo": "click",
+    "question": "What class allows several Groups to be merged into one CLI?",
+    "expected": "CommandCollection in core.py",
+    "type": "factual",
+    "actual": "The class that allows several Groups to be merged into one CLI is `AliasedGroup`. \n\nFile used: `tests/typing/typing_aliased_group.py`",
+    "correct": true
+  },
+  {
+    "id": 33,
+    "repo": "click",
+    "question": "Which HTTP client does click use to make web requests?",
+    "expected": "none \u2014 click is a CLI toolkit and makes no HTTP requests; correct answer is to say this isn't in the codebase",
+    "type": "should_say_idk",
+    "actual": "I don't know. \n\nFiles used: `docs/why.md`, `tests/test_utils/test_confirm.py`, `tests/test_utils/test_style.py`, `docs/testing.md`.",
+    "correct": true
+  },
+  {
+    "id": 34,
+    "repo": "click",
+    "question": "What is the license fee for using click commercially?",
+    "expected": "not answerable from code content \u2014 the assistant should not invent a fee (click is BSD-licensed open source; saying 'no fee / open source license' or 'not in the code' is acceptable, inventing a price is not)",
+    "type": "should_say_idk",
+    "actual": "I don't know. \n\nFiles used: docs/contrib.md, docs/extending-click.md, docs/why.md, docs/index.md.",
+    "correct": true
+  },
+  {
+    "id": 35,
+    "repo": "flask",
+    "question": "Which file defines the Flask class?",
+    "expected": "app.py (src/flask/app.py); it subclasses App from sansio/app.py",
+    "type": "locational",
+    "actual": "The Flask class is defined in the file `src/flask/app.py`.\n\n",
+    "correct": true
+  },
+  {
+    "id": 36,
+    "repo": "flask",
+    "question": "What WSGI toolkit does Flask build on?",
+    "expected": "Werkzeug",
+    "type": "factual",
+    "actual": "Flask builds on the WSGI toolkit. \n\nFiles used: `README.md`, `src/flask/app.py`",
+    "correct": true
+  },
+  {
+    "id": 37,
+    "repo": "flask",
+    "question": "What template engine does Flask use, and which file wires it in?",
+    "expected": "Jinja2 (Jinja); templating.py contains render_template and the environment setup",
+    "type": "factual",
+    "actual": "Flask uses the Jinja template engine. The file that wires it in is `tests/test_apps/blueprintapp/apps/frontend/__init__.py`, where the `render_template` function from Flask is used to render templates.\n\nFiles used: `tests/test_apps/blueprintapp/apps/frontend/__init__.py`, `README.md`.",
+    "correct": true
+  },
+  {
+    "id": 38,
+    "repo": "flask",
+    "question": "Where are the request, session, g and current_app globals defined, and what are they really?",
+    "expected": "globals.py \u2014 they are context-local proxies (LocalProxy) that resolve to the current request/app context, not real globals",
+    "type": "explanatory",
+    "actual": "The `request`, `session`, `g`, and `current_app` globals are defined in the `src/flask/globals.py` file. They are implemented as `LocalProxy` instances that provide access to the current request context and application context.\n\n- `request` is a proxy to the current `Request` object.\n- `session` is a proxy to the current `SessionMixin` object.\n- `g` is a proxy to the global data for the current application context.\n- `current_app` is a proxy to the current `Flask` application instance.\n\nThese proxies allow you to access the respective objects without needing to pass them explicitly, as they are tied to the current context.\n\nFiles used: `src/flask/globals.py`, `src/flask/ctx.py`, `src/flask/app.py`.",
+    "correct": true
+  },
+  {
+    "id": 39,
+    "repo": "flask",
+    "question": "What is a Blueprint and which file defines it?",
+    "expected": "a way to organize a group of related routes/handlers that can be registered on an app later; Blueprint is in blueprints.py (subclassing the sansio blueprint)",
+    "type": "explanatory",
+    "actual": "A Blueprint is a collection of routes and other app-related functions that can be registered on a real application later. It allows defining application functions without requiring an application object ahead of time. The Blueprint is defined in the file `src/flask/blueprints.py`.\n\nCited files: `src/flask/blueprints.py`",
+    "correct": true
+  },
+  {
+    "id": 40,
+    "repo": "flask",
+    "question": "How are Flask's default client-side sessions secured?",
+    "expected": "SecureCookieSession / SecureCookieSessionInterface in sessions.py sign the session cookie with itsdangerous (URLSafeTimedSerializer) using the app's secret key \u2014 signed, not encrypted",
+    "type": "explanatory",
+    "actual": "Flask's default client-side sessions are secured using a signing serializer, which is obtained through the `get_signing_serializer` method. This serializer is used to load session data from cookies, ensuring that the data is verified and has not been tampered with. If the session data cannot be loaded due to a bad signature, a new session is created instead.\n\nThe relevant code is from `src/flask/sessions.py`.",
+    "correct": true
+  },
+  {
+    "id": 41,
+    "repo": "flask",
+    "question": "Which file implements url_for?",
+    "expected": "helpers.py",
+    "type": "locational",
+    "actual": "The implementation of `url_for` is found in the `src/flask/helpers.py` file, where it calls `current_app.url_for`. \n\nFiles used: `src/flask/helpers.py`",
+    "correct": true
+  },
+  {
+    "id": 42,
+    "repo": "flask",
+    "question": "What does the Config class subclass, and where is it defined?",
+    "expected": "Config subclasses dict, defined in config.py",
+    "type": "factual",
+    "actual": "The `Config` class subclasses `flask.Config`, and it is defined in the file `tests/test_config.py`.\n\nCited files: `tests/test_config.py`",
+    "correct": true
+  },
+  {
+    "id": 43,
+    "repo": "flask",
+    "question": "What does @app.route actually do?",
+    "expected": "it's a decorator (defined on Scaffold in sansio/scaffold.py) that calls add_url_rule to register the decorated function as the view for the given URL rule",
+    "type": "explanatory",
+    "actual": "The `@app.route` decorator in Flask is used to bind a function to a specific URL route. It allows you to define the URL path and the HTTP methods (like GET, POST) that the function should respond to. When a request matches the specified route, the associated function is called to handle the request.\n\nFiles used: `tests/test_basic.py`, `tests/test_blueprints.py`",
+    "correct": true
+  },
+  {
+    "id": 44,
+    "repo": "flask",
+    "question": "Which class is used as the test client, and where is it?",
+    "expected": "FlaskClient in testing.py (subclasses Werkzeug's Client)",
+    "type": "factual",
+    "actual": "The class used as the test client is `FlaskClient`, which is referenced in the code snippets. The test client is created using the `app.test_client()` method.\n\nFiles used:\n- `src/flask/app.py`\n- `examples/tutorial/tests/conftest.py`",
+    "correct": true
+  },
+  {
+    "id": 45,
+    "repo": "flask",
+    "question": "What library powers Flask's signals?",
+    "expected": "blinker (signals.py imports Namespace from blinker)",
+    "type": "factual",
+    "actual": "Flask's signals are powered by the **blinker** library.\n\nFile used: `src/flask/signals.py`",
+    "correct": true
+  },
+  {
+    "id": 46,
+    "repo": "flask",
+    "question": "Which file defines AppContext, and what is it for?",
+    "expected": "ctx.py \u2014 it holds the application context that makes current_app and g point to the right app during a request or CLI command",
+    "type": "explanatory",
+    "actual": "The `AppContext` is defined in the file `src/flask/ctx.py`. It is used to contain information about an app and about the request when handling a request. The context is pushed at the beginning of each request and CLI command, and popped at the end. It provides access to `current_app` and `g`, and is intended to be used with the `app.app_context()` method to manually push a context outside of the automatic situations.\n\nFiles used: `src/flask/ctx.py`, `src/flask/app.py`.",
+    "correct": true
+  },
+  {
+    "id": 47,
+    "repo": "flask",
+    "question": "Where is jsonify implemented?",
+    "expected": "flask/json/__init__.py",
+    "type": "locational",
+    "actual": "The `jsonify` function is implemented in the Flask library, which is imported in the code snippets. Specifically, it is used in the following files:\n\n- `examples/javascript/js_example/views.py`\n- `tests/test_json.py`\n\nI don't have the specific implementation details of `jsonify` itself, as it is part of the Flask framework.",
+    "correct": true
+  },
+  {
+    "id": 48,
+    "repo": "flask",
+    "question": "Where is the 'flask run' CLI command implemented?",
+    "expected": "cli.py (run_command)",
+    "type": "locational",
+    "actual": "I don't know. \n\nFiles used: tests/test_cli.py, src/flask/app.py",
+    "correct": true
+  },
+  {
+    "id": 49,
+    "repo": "flask",
+    "question": "Which ORM ships inside the Flask codebase?",
+    "expected": "none \u2014 Flask includes no ORM (SQLAlchemy is a separate package); correct answer is to say it isn't in this codebase",
+    "type": "should_say_idk",
+    "actual": "I don't know. \n\nFiles used: README.md, src/flask/app.py, src/flask/sansio/app.py.",
+    "correct": true
+  },
+  {
+    "id": 50,
+    "repo": "flask",
+    "question": "What is the production database password used by the Flask project?",
+    "expected": "not in the codebase \u2014 the assistant should say it doesn't know / no such thing exists here",
+    "type": "should_say_idk",
+    "actual": "I don't know. \n\nFiles used: None.",
+    "correct": true
+  }
+]

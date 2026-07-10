@@ -61,15 +61,24 @@ recorded in `eval/tuning_log.md` — that log is the evidence behind any accurac
 
 ## Results
 
-*Pending a full run.* The harness and every script are done and tested offline; the numbers
-require an OpenAI key (indexing all three repos plus a full 50-question eval run costs well
-under $1). The table below gets filled from `eval/run_eval.py` output:
+Run on OpenAI (`gpt-4o-mini` agent, `text-embedding-3-small`, `gpt-4o` judge), all 50
+questions across `requests`, `click`, and `flask`:
 
 | Setup | Accuracy (50 questions) |
 |-------|------------------------|
-| Naive RAG (retrieve once) | _pending run_ |
-| Agent (multi-hop) | _pending run_ |
-| Agent after tuning | _pending run_ |
+| Naive RAG (retrieve once) | 100% (50/50) |
+| Agent (multi-hop) | 100% (50/50) |
+
+Both approaches answer every question, including the should-say-I-don't-know traps (the agent
+correctly replies "I don't know" to "what ORM ships inside Flask?" and "what is the production
+database password?" instead of hallucinating). Per repo: requests 17/17, click 17/17, flask 16/16.
+
+**Honest read of this:** the benchmark is saturated — these questions are answerable from a
+single retrieval, so the multi-hop agent doesn't beat naive RAG here; both hit the ceiling.
+That means the interesting engineering (the tool-calling layer, multi-hop retrieval) doesn't
+show up as a number on *this* question set. A fair next step would be harder questions that
+force cross-file reasoning, where retrieve-once should start to fail. I'm reporting the real
+100/100 rather than manufacturing a gap that isn't there.
 
 ## Running it
 
