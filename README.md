@@ -41,7 +41,7 @@ question ───────────────────────�
    over default splitting for code.
 3. **Embed + store** — each chunk becomes a 1536-dim vector in Qdrant. Cosine similarity
    makes "how are retries handled?" land near retry code even with zero shared keywords.
-4. **Agent** — instead of retrieve-once-and-hope, a ReAct agent decides what to do: search,
+4. **Agent** - instead of retrieve-once-and-hope, a ReAct agent decides what to do: search,
    see it needs the full file, read it, search again. That's multi-hop retrieval, and it's
    what handles questions whose answers span several files.
 
@@ -51,9 +51,9 @@ its own collection so several repos can be indexed and evaluated side by side.
 
 ## The eval harness (the part I care about most)
 
-Anyone can wire up an agent. Knowing whether it's *right* is the actual engineering. I wrote
-50 questions with known correct answers across three real codebases — requests, click, and
-flask — by reading their source and verifying every answer. Four question types:
+Anyone can wire up an agent. Knowing whether it's *right* is the part I care about, so I wrote
+50 questions with known correct answers across three real codebases, requests, click, and
+flask, by reading their source and checking every answer. Four question types:
 
 - **Factual** — "what is the default number of retries?"
 - **Locational** — "which file defines the Session class?"
@@ -110,7 +110,7 @@ uvicorn main:app --reload          # backend on :8000 (docs at /docs)
 cd frontend && npm install && npm run dev   # chat UI on :3000
 ```
 
-Note: Qdrant local mode allows one process at a time — stop the API server before running
+Note: Qdrant local mode allows one process at a time, stop the API server before running
 CLI scripts like `index_repo.py` or the eval.
 
 ## Files
