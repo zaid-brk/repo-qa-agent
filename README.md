@@ -17,6 +17,8 @@ retrieval-augmented generation (RAG) upgraded to an agent that can search, list 
 read whole files across multiple hops, plus a 50-question evaluation harness that measures
 how accurate it actually is.
 
+**Live API:** https://repo-qa-agent.onrender.com/docs (FastAPI backend on Render, Qdrant Cloud as the vector store). Free tier spins down after inactivity, so the first request can take ~50s to wake up.
+
 ## How it works
 
 The LLM has never seen your repo, so the pipeline gives it the right pieces at the right time:
