@@ -1,8 +1,9 @@
 """Phase 3 — embed chunks and store them in Qdrant; search by meaning.
 
-Qdrant runs in local file mode (everything persisted under ./qdrant_storage),
-so there's no Docker or server to manage while developing. For deployment,
-swap the client for QdrantClient(url=..., api_key=...) pointing at Qdrant Cloud.
+Qdrant runs in local file mode (everything persisted under ./qdrant_storage)
+when QDRANT_URL isn't set, so there's no Docker or server to manage while
+developing. Set QDRANT_URL + QDRANT_API_KEY (Qdrant Cloud) to switch to a
+remote cluster — needed for deployment, since HF Spaces has no persistent disk.
 
 One collection per repo (chunks_requests, chunks_click, ...) so several repos
 can be indexed and evaluated side by side without mixing their vectors.
@@ -13,15 +14,23 @@ Note: local mode allows one process at a time (it holds a file lock). Stop the
 API server before running index_repo.py / run_eval.py from the CLI.
 """
 import atexit
+import os
 import uuid
 from pathlib import Path
 
+from dotenv import load_dotenv
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, VectorParams, PointStruct
 
 from llm import get_embeddings, EMBED_DIM
 
-client = QdrantClient(path="qdrant_storage")
+load_dotenv()
+
+QDRANT_URL = os.getenv("QDRANT_URL")
+if QDRANT_URL:
+    client = QdrantClient(url=QDRANT_URL, api_key=os.getenv("QDRANT_API_KEY"))
+else:
+    client = QdrantClient(path="qdrant_storage")
 atexit.register(client.close)   # clean shutdown; avoids a noisy destructor warning at exit
 
 ACTIVE_FILE = Path("active_repo.txt")

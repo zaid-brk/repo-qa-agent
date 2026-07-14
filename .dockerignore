@@ -1,0 +1,11 @@
+.venv
+.git
+__pycache__
+*.pyc
+.env
+repos/
+qdrant_storage/
+active_repo.txt
+.DS_Store
+frontend/node_modules
+frontend/.next

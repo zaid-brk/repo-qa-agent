@@ -1,3 +1,13 @@
+---
+title: Repo Q&A Agent
+emoji: 🔍
+colorFrom: blue
+colorTo: purple
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
 # GitHub Repo Q&A Agent (RAG)
 
 I built a web app where you paste a GitHub repo URL, it indexes the code, and then you can
