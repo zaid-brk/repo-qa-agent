@@ -20,7 +20,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 from qdrant_client import QdrantClient
-from qdrant_client.models import Distance, VectorParams, PointStruct
+from qdrant_client.models import Distance, VectorParams, PointStruct, PayloadSchemaType
 
 from llm import get_embeddings, EMBED_DIM
 
@@ -62,6 +62,11 @@ def ensure_collection(name: str):
         client.create_collection(
             collection_name=name,
             vectors_config=VectorParams(size=EMBED_DIM, distance=Distance.COSINE),
+        )
+        # tools.py filters by "file" (read_file) — Qdrant Cloud requires an explicit
+        # payload index to filter on a field; local file-mode Qdrant doesn't.
+        client.create_payload_index(
+            collection_name=name, field_name="file", field_schema=PayloadSchemaType.KEYWORD,
         )
 
 
