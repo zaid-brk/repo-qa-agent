@@ -7,10 +7,13 @@ const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 type Hop = { tool: string; input: Record<string, string> };
 type Result = { question: string; answer: string; trace: Hop[] };
 
+// Phrased to work on whatever repo is loaded, so they still make sense after
+// indexing something new on the spot. The last one has no answer in most repos —
+// it is there to check the agent says so instead of inventing one.
 const SAMPLES = [
-  "Which file defines the Flask class and what does its run method do?",
-  "How does the @app.route decorator end up handling a request? Walk me through the files involved.",
-  "What ORM ships inside Flask?",
+  "What does this project do, and which file is the entry point?",
+  "Walk me through what happens end to end, and which files are involved?",
+  "What ORM ships inside this project?",
 ];
 
 const CODE_FILE = /[\w./-]+\.(?:py|pyi|js|jsx|ts|tsx|go|rs|java|c|cpp|h|md|json|ya?ml)\b/g;
@@ -30,7 +33,7 @@ export default function Home() {
   const [q, setQ] = useState("");
   const [result, setResult] = useState<Result | null>(null);
   const [busy, setBusy] = useState(false);
-  const [showIndex, setShowIndex] = useState(false);
+  const [indexing, setIndexing] = useState(false);
 
   useEffect(() => {
     fetch(`${API}/status`)
@@ -40,8 +43,10 @@ export default function Home() {
   }, []);
 
   async function indexRepo() {
-    if (!repoUrl) return;
-    setIndexNote("Cloning and embedding — a small repo takes a minute or two.");
+    if (!repoUrl || indexing) return;
+    setIndexing(true);
+    setResult(null);
+    setIndexNote("Cloning, splitting into chunks, embedding…");
     try {
       const res = await fetch(`${API}/index`, {
         method: "POST",
@@ -54,6 +59,7 @@ export default function Home() {
     } catch {
       setIndexNote(`Could not reach the API at ${API}.`);
     }
+    setIndexing(false);
   }
 
   async function ask(question: string) {
@@ -103,49 +109,57 @@ export default function Home() {
         </span>
       </header>
 
-      <div className="bar">
-        <input
-          aria-label="Question about the codebase"
-          placeholder="How are sessions secured?"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && ask(q)}
-        />
-        <button onClick={() => ask(q)} disabled={busy || !q}>
-          {busy ? "Working" : "Ask"}
-        </button>
-      </div>
-
-      <div className="samples">
-        <span className="label">Try</span>
-        {SAMPLES.map((s) => (
-          <button key={s} className="ghost" disabled={busy} onClick={() => ask(s)}>
-            {s.length > 58 ? s.slice(0, 56) + "…" : s}
-          </button>
-        ))}
-      </div>
-
-      <div className="index-row">
-        <button className="ghost" onClick={() => setShowIndex((v) => !v)}>
-          {showIndex ? "Hide" : "Index a different repo"}
-        </button>
-        {indexNote && <p className="note">{indexNote}</p>}
-      </div>
-
-      {showIndex && (
+      {/* Two steps, numbered because the order is real: nothing can be asked
+          until a repo has been indexed. */}
+      <section className="step">
+        <h2 className="step-head">
+          <span className="step-n">1</span> Point it at a repo
+        </h2>
         <div className="bar">
           <input
             aria-label="GitHub repository URL"
-            placeholder="https://github.com/pallets/click"
+            placeholder="https://github.com/pallets/itsdangerous"
             value={repoUrl}
             onChange={(e) => setRepoUrl(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && indexRepo()}
           />
-          <button onClick={indexRepo} disabled={!repoUrl}>
-            Index
+          <button onClick={indexRepo} disabled={!repoUrl || indexing}>
+            {indexing ? "Indexing" : "Index"}
           </button>
         </div>
-      )}
+        {indexNote && (
+          <p className="note">
+            {indexing && <span className="pulse" />}
+            {indexNote}
+          </p>
+        )}
+      </section>
+
+      <section className="step">
+        <h2 className="step-head">
+          <span className="step-n">2</span> Ask about it
+        </h2>
+        <div className="bar">
+          <input
+            aria-label="Question about the codebase"
+            placeholder="Where is the signing logic?"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && ask(q)}
+          />
+          <button onClick={() => ask(q)} disabled={busy || !q}>
+            {busy ? "Working" : "Ask"}
+          </button>
+        </div>
+        <div className="samples">
+          <span className="label">Try</span>
+          {SAMPLES.map((s) => (
+            <button key={s} className="ghost" disabled={busy} onClick={() => ask(s)}>
+              {s.length > 58 ? s.slice(0, 56) + "…" : s}
+            </button>
+          ))}
+        </div>
+      </section>
 
       {busy && (
         <p className="thinking">

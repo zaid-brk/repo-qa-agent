@@ -117,10 +117,39 @@ body {
 
 /* ---- inputs ---- */
 
+.step {
+  margin-top: 28px;
+}
+
+.step-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--mute);
+  margin: 0 0 10px;
+}
+
+.step-n {
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  font-family: var(--font-display), sans-serif;
+  font-size: 10px;
+  letter-spacing: 0;
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+
 .bar {
   display: flex;
   gap: 8px;
-  margin-top: 28px;
 }
 
 .bar input {
@@ -177,9 +206,12 @@ button.ghost:hover:not(:disabled) {
 }
 
 .note {
+  display: flex;
+  align-items: center;
+  gap: 9px;
   font-size: 13px;
   color: var(--mute);
-  margin: 0;
+  margin: 10px 0 0;
 }
 
 .samples {
@@ -197,18 +229,6 @@ button.ghost:hover:not(:disabled) {
   text-transform: uppercase;
   color: var(--mute);
   margin-right: 2px;
-}
-
-/* The index control is a different kind of action from the sample questions,
-   so it sits below a rule rather than beside them. */
-.index-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  border-top: 1px solid var(--line);
-  padding-top: 14px;
-  margin-top: 22px;
 }
 
 /* ---- result: trace rail + answer ---- */

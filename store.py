@@ -35,6 +35,12 @@ atexit.register(client.close)   # clean shutdown; avoids a noisy destructor warn
 
 ACTIVE_FILE = Path("active_repo.txt")
 
+# The active repo is also mirrored into Qdrant itself. A deployed container has
+# an ephemeral disk, so active_repo.txt vanishes on every restart while the
+# vectors survive — keeping the pointer next to the data is what makes the
+# deployment answer questions again after a restart instead of 500ing.
+META = "active_repo_meta"
+
 
 def repo_name_from_url(github_url: str) -> str:
     """'https://github.com/psf/requests' -> 'requests'."""
@@ -47,21 +53,44 @@ def collection_for(repo_name: str) -> str:
 
 def set_active_repo(repo_name: str):
     ACTIVE_FILE.write_text(repo_name)
+    # Single point, dummy 1-d vector — this collection is a key/value slot, not
+    # something we ever search.
+    if META not in [c.name for c in client.get_collections().collections]:
+        client.create_collection(META, vectors_config=VectorParams(size=1, distance=Distance.COSINE))
+    client.upsert(META, points=[PointStruct(id=0, vector=[0.0], payload={"repo": repo_name})])
+
+
+def indexed_repos() -> list[str]:
+    """Repos that have vectors stored, newest-first ordering not guaranteed."""
+    names = [c.name for c in client.get_collections().collections]
+    return sorted(n.removeprefix("chunks_") for n in names if n.startswith("chunks_"))
 
 
 def get_active_repo() -> str:
     if ACTIVE_FILE.exists():
         return ACTIVE_FILE.read_text().strip()
-    # Deployed containers have an ephemeral disk, so the file is gone after every
-    # restart even though the vectors survive in Qdrant Cloud. Fall back to the
-    # stored collections; unambiguous only when exactly one repo is indexed.
-    indexed = [c.name.removeprefix("chunks_") for c in client.get_collections().collections]
-    if len(indexed) == 1:
+    points = client.retrieve(META, ids=[0], with_payload=True) if META in [
+        c.name for c in client.get_collections().collections
+    ] else []
+    if points:
+        return points[0].payload["repo"]
+    indexed = indexed_repos()
+    if len(indexed) == 1:      # unambiguous even without the pointer
         return indexed[0]
     raise RuntimeError(
         "No active repo — index one first: python index_repo.py <github_url>"
-        + (f" (indexed: {', '.join(sorted(indexed))})" if indexed else "")
+        + (f" (indexed: {', '.join(indexed)})" if indexed else "")
     )
+
+
+def reset_collection(name: str):
+    """Drop a repo's vectors so a re-index replaces them instead of duplicating.
+
+    Chunk ids are fresh UUIDs on every run, so without this, indexing the same
+    repo twice stores every chunk twice.
+    """
+    if name in [c.name for c in client.get_collections().collections]:
+        client.delete_collection(name)
 
 
 def ensure_collection(name: str):

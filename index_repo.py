@@ -7,12 +7,15 @@ import tempfile
 
 from ingest import clone_repo, collect_files
 from chunk import chunk_file
-from store import store_chunks, collection_for, repo_name_from_url, set_active_repo
+from store import (
+    store_chunks, collection_for, repo_name_from_url, set_active_repo, reset_collection,
+)
 
 
 def index_repo(github_url: str):
     repo = repo_name_from_url(github_url)
     collection = collection_for(repo)
+    reset_collection(collection)   # re-indexing replaces, never duplicates
     dest = tempfile.mkdtemp()
     clone_repo(github_url, dest)
     total = 0
