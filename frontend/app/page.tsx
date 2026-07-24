@@ -12,7 +12,7 @@ type Result = { question: string; answer: string; trace: Hop[] };
 // it is there to check the agent says so instead of inventing one.
 const SAMPLES = [
   "What does this project do, and which file is the entry point?",
-  "Walk me through what happens end to end, and which files are involved?",
+  "What are the main classes here and which files define them?",
   "What ORM ships inside this project?",
 ];
 
