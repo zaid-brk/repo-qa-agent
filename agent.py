@@ -28,9 +28,24 @@ def get_agent():
     return _agent
 
 
-def ask(question: str) -> str:
+def ask_traced(question: str) -> tuple[str, list[dict]]:
+    """Answer, plus the tool calls the agent made getting there.
+
+    The multi-hop retrieval is the whole point of the agent, so surface it
+    instead of throwing it away — the trace is what shows a second search or a
+    read_file actually happened rather than one blind retrieval.
+    """
     result = get_agent().invoke({"messages": [("user", question)]})
-    return result["messages"][-1].content
+    trace = [
+        {"tool": call["name"], "input": call["args"]}
+        for msg in result["messages"]
+        for call in getattr(msg, "tool_calls", []) or []
+    ]
+    return result["messages"][-1].content, trace
+
+
+def ask(question: str) -> str:
+    return ask_traced(question)[0]
 
 
 if __name__ == "__main__":

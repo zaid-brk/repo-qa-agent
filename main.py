@@ -11,7 +11,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from index_repo import index_repo
-from agent import ask
+from agent import ask_traced
+from store import get_active_repo
 
 app = FastAPI(title="Repo Q&A Agent")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
@@ -33,4 +34,14 @@ def index(req: IndexReq):
 
 @app.post("/ask")
 def ask_endpoint(req: AskReq):
-    return {"answer": ask(req.question)}
+    answer, trace = ask_traced(req.question)
+    return {"answer": answer, "trace": trace}
+
+
+@app.get("/status")
+def status():
+    """Which repo questions currently go to — the UI shows it so you always know."""
+    try:
+        return {"repo": get_active_repo()}
+    except RuntimeError as e:
+        return {"repo": None, "detail": str(e)}
