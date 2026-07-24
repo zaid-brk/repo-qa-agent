@@ -50,9 +50,18 @@ def set_active_repo(repo_name: str):
 
 
 def get_active_repo() -> str:
-    if not ACTIVE_FILE.exists():
-        raise RuntimeError("No repo indexed yet — run: python index_repo.py <github_url>")
-    return ACTIVE_FILE.read_text().strip()
+    if ACTIVE_FILE.exists():
+        return ACTIVE_FILE.read_text().strip()
+    # Deployed containers have an ephemeral disk, so the file is gone after every
+    # restart even though the vectors survive in Qdrant Cloud. Fall back to the
+    # stored collections; unambiguous only when exactly one repo is indexed.
+    indexed = [c.name.removeprefix("chunks_") for c in client.get_collections().collections]
+    if len(indexed) == 1:
+        return indexed[0]
+    raise RuntimeError(
+        "No active repo — index one first: python index_repo.py <github_url>"
+        + (f" (indexed: {', '.join(sorted(indexed))})" if indexed else "")
+    )
 
 
 def ensure_collection(name: str):

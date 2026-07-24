@@ -5,6 +5,7 @@ search again with a better query, list what files exist, or read a whole file
 when chunks aren't enough. That's multi-hop retrieval.
 """
 from langchain_core.tools import tool
+from qdrant_client.models import Filter, FieldCondition, MatchValue
 
 from store import search, client, collection_for, get_active_repo
 
@@ -38,7 +39,8 @@ def read_file(file_path: str) -> str:
     collection = collection_for(get_active_repo())
     points, _ = client.scroll(
         collection, limit=1000, with_payload=True,
-        scroll_filter={"must": [{"key": "file", "match": {"value": file_path}}]},
+        # Filter model, not a raw dict — local file-mode Qdrant doesn't parse dicts.
+        scroll_filter=Filter(must=[FieldCondition(key="file", match=MatchValue(value=file_path))]),
     )
     # Reassemble the file from its chunks, in order.
     chunks = sorted(points, key=lambda p: p.payload.get("chunk_index", 0))
