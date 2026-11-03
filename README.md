@@ -19,6 +19,10 @@ how accurate it actually is.
 
 **Live API:** https://repo-qa-agent.onrender.com/docs (FastAPI backend on Render, Qdrant Cloud as the vector store). Free tier spins down after inactivity, so the first request can take ~50s to wake up.
 
+## Demo
+
+[Watch the demo on Loom](https://www.loom.com/share/12029311091b493395c86c3842e175d7)
+
 ## How it works
 
 The LLM has never seen your repo, so the pipeline gives it the right pieces at the right time:
