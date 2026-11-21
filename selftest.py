@@ -148,6 +148,25 @@ def test_runaway_agent_stays_in_context():
     print(f"✓ runaway agent stopped after {len(trace)} reads, peak context {max(seen):,} chars")
 
 
+def test_find_symbol():
+    """Exact definitions with line numbers, which semantic search is bad at
+    ("class " scored below unrelated concepts on itsdangerous, issue #9)."""
+    signer = "import hmac\n\n\nclass Signer:\n    def sign(self, value):\n        return value\n\n\ndef want_bytes(s):\n    return s\n"
+    serializer = "class Serializer:\n    pass\n\n\nclass URLSafeSerializer(Serializer):\n    def dumps(self, obj):\n        pass\n"
+    tools = _fake_store({"src/signer.py": signer, "src/serializer.py": serializer,
+                         "broken.py": "def oops(:\n", "README.md": "class Signer in docs"})
+    find = lambda name="": tools.find_symbol.invoke({"name": name})
+    assert find("Signer") == "src/signer.py:4 class Signer", find("Signer")
+    assert find("sign") == "src/signer.py:4 class Signer\nsrc/signer.py:5 def Signer.sign", find("sign")
+    assert find("serializer") == ("src/serializer.py:1 class Serializer\n"
+                                  "src/serializer.py:5 class URLSafeSerializer"), find("serializer")
+    assert find("want_bytes") == "src/signer.py:9 def want_bytes", find("want_bytes")
+    assert find() == ("src/serializer.py:1 class Serializer\nsrc/serializer.py:5 class URLSafeSerializer\n"
+                      "src/signer.py:4 class Signer"), find()
+    assert find("nothing_here").startswith("No Python class or function"), find("nothing_here")
+    print("✓ find_symbol gives exact definitions with line numbers")
+
+
 def test_index_rejects_non_github_urls():
     """/index must only clone https://github.com/<owner>/<repo>. Anything else
     is a 400 and git is never run."""
@@ -286,6 +305,7 @@ if __name__ == "__main__":
     test_failed_clone_keeps_old_index()
     test_read_file_pages_big_files()
     test_runaway_agent_stays_in_context()
+    test_find_symbol()
     test_index_rejects_non_github_urls()
     test_missing_repo_is_a_clear_400()
     test_ask_uses_the_callers_repo()

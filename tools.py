@@ -4,6 +4,8 @@ Naive RAG retrieves 5 chunks and stops. These tools let the agent keep digging:
 search again with a better query, list what files exist, or read a whole file
 when chunks aren't enough. That's multi-hop retrieval.
 """
+import ast
+
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
 from qdrant_client.models import Filter, FieldCondition, MatchValue
@@ -61,20 +63,63 @@ def search_code(query: str, config: RunnableConfig) -> str:
     return f"{note}\n\n{body}"
 
 
-@tool
-def list_files(config: RunnableConfig) -> str:
-    """List all files that have been indexed from the repo."""
-    # Scroll through stored points and collect unique file names.
-    collection = _collection(config)
-    files = set()
+def _all_points(collection: str):
+    """Every stored chunk in the collection."""
     offset = None
     while True:
         points, offset = client.scroll(collection, limit=256, offset=offset, with_payload=True)
-        for p in points:
-            files.add(p.payload["file"])
+        yield from points
         if offset is None:
             break
-    return "\n".join(sorted(files))
+
+
+@tool
+def list_files(config: RunnableConfig) -> str:
+    """List all files that have been indexed from the repo."""
+    return "\n".join(sorted({p.payload["file"] for p in _all_points(_collection(config))}))
+
+
+MAX_SYMBOLS = 200
+
+
+@tool
+def find_symbol(config: RunnableConfig, name: str = "") -> str:
+    """Find where Python classes and functions are defined, with file and line.
+    Matches any definition whose name contains `name` (case-insensitive); methods
+    show as Class.method. Leave `name` empty to list every class in the repo.
+    Use this, not search_code, for "where is X defined" or "what classes exist"."""
+    # ponytail: rebuilds every .py file per call from the stored chunks (no re-index
+    # needed). Fine for repos this size; cache per collection if it gets slow.
+    chunks: dict[str, list] = {}
+    for p in _all_points(_collection(config)):
+        if p.payload["file"].endswith(".py"):
+            chunks.setdefault(p.payload["file"], []).append(p.payload)
+    found = []
+    for path, parts in sorted(chunks.items()):
+        parts.sort(key=lambda c: c.get("chunk_index", 0))
+        try:
+            tree = ast.parse(join_chunks([(c.get("start"), c["text"]) for c in parts]))
+        except (SyntaxError, ValueError):
+            continue
+        stack = [(tree, "")]
+        while stack:
+            node, prefix = stack.pop()
+            for child in ast.iter_child_nodes(node):
+                if isinstance(child, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
+                    is_class = isinstance(child, ast.ClassDef)
+                    hit = name.lower() in child.name.lower() if name else is_class
+                    if hit:
+                        kind = "class" if is_class else "def"
+                        found.append((path, child.lineno, f"{kind} {prefix}{child.name}"))
+                    stack.append((child, f"{prefix}{child.name}."))
+    if not found:
+        return (f"No Python class or function matching '{name}'. "
+                "Try a shorter name, or search_code for non-Python files.")
+    found.sort()
+    lines = [f"{path}:{line} {what}" for path, line, what in found]
+    if len(lines) > MAX_SYMBOLS:
+        lines = lines[:MAX_SYMBOLS] + [f"[{len(found) - MAX_SYMBOLS} more. Use a more specific name.]"]
+    return "\n".join(lines)
 
 
 @tool
