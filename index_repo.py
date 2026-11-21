@@ -15,18 +15,19 @@ from store import (
 def index_repo(github_url: str):
     repo = repo_name_from_url(github_url)
     collection = collection_for(repo)
-    reset_collection(collection)   # re-indexing replaces, never duplicates
-    dest = tempfile.mkdtemp()
-    clone_repo(github_url, dest)
-    total = 0
-    batch = []
-    for rel_path, text in collect_files(dest):
-        batch.extend(chunk_file(rel_path, text))
-        if len(batch) >= 100:          # embed in batches of 100 to save API calls
+    with tempfile.TemporaryDirectory() as dest:   # clone is deleted afterwards
+        clone_repo(github_url, dest)
+        # Only after the clone succeeds: a bad URL must not wipe the working index.
+        reset_collection(collection)   # re-indexing replaces, never duplicates
+        total = 0
+        batch = []
+        for rel_path, text in collect_files(dest):
+            batch.extend(chunk_file(rel_path, text))
+            if len(batch) >= 100:      # embed in batches of 100 to save API calls
+                total += store_chunks(batch, collection)
+                batch = []
+        if batch:
             total += store_chunks(batch, collection)
-            batch = []
-    if batch:
-        total += store_chunks(batch, collection)
     set_active_repo(repo)              # questions now go to this repo
     print(f"Indexed {total} chunks from {github_url} into '{collection}'")
     return total
