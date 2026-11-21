@@ -185,6 +185,25 @@ def test_index_rejects_non_github_urls():
     print("✓ /index rejects anything but https://github.com/<owner>/<repo>")
 
 
+def test_missing_repo_is_a_clear_400():
+    """A repo git can't clone (typo, private) is the caller's mistake: 400 with
+    a message the UI can show, not a bare 500."""
+    import subprocess, ingest
+    from fastapi.testclient import TestClient
+    import main
+    def fail(*a, **k):
+        raise subprocess.CalledProcessError(128, a[0])
+    orig = ingest.subprocess.run
+    ingest.subprocess.run = fail
+    try:
+        r = TestClient(main.app, raise_server_exceptions=False).post(
+            "/index", json={"github_url": "https://github.com/x/does-not-exist"})
+    finally:
+        ingest.subprocess.run = orig
+    assert r.status_code == 400 and "clone" in r.json()["detail"], (r.status_code, r.text)
+    print("✓ missing repo gives a 400 with a readable message")
+
+
 def test_collection_naming():
     assert repo_name_from_url("https://github.com/psf/requests") == "requests"
     assert repo_name_from_url("https://github.com/pallets/click.git") == "click"
@@ -220,6 +239,7 @@ if __name__ == "__main__":
     test_read_file_pages_big_files()
     test_runaway_agent_stays_in_context()
     test_index_rejects_non_github_urls()
+    test_missing_repo_is_a_clear_400()
     test_collection_naming()
     test_qdrant_roundtrip()
     test_imports_without_key()
