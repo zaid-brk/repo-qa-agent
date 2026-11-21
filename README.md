@@ -12,12 +12,12 @@ pinned: false
 
 I built a web app where you paste a GitHub repo URL, it indexes the code, and then you can
 ask questions like "where is authentication handled?" or "what does raise_for_status do?"
-and get answers grounded in the actual source, with the files cited. Under the hood it's
+and get answers grounded in the actual source, citing the file and line. Under the hood it's
 retrieval-augmented generation (RAG) upgraded to an agent that can search, list files, and
 read whole files across multiple hops, plus a 67-question evaluation harness that measures
 how accurate it actually is.
 
-**Live API:** https://repo-qa-agent.onrender.com/docs (FastAPI backend on Render, Qdrant Cloud as the vector store). Currently down: the free Qdrant cluster was deleted for inactivity and is being replaced (issue #13). The free tier also spins down when idle, so the first request can take ~50s to wake up.
+**Live API:** https://repo-qa-agent.onrender.com/docs (FastAPI backend on Render, Qdrant Cloud as the vector store). It's offline right now because Qdrant deleted my free cluster after a stretch of inactivity. I'm setting up a new one and expect the API back soon (tracked in #13). Render's free tier also sleeps when idle, so the first request can take ~50s to wake up.
 
 ## Demo
 
@@ -59,7 +59,7 @@ question ───────────────────────�
    Answers cite `path:line`, and the API links each citation to those lines on GitHub at
    the exact commit that was indexed. Two guard rails keep it inside the model's context:
    `read_file` returns long files in 20k-character pages, and the agent stops after 25
-   steps with a clear "ran out of steps" reply instead of crashing.
+   steps and says it ran out instead of crashing.
 
 Qdrant runs in local file mode (`qdrant_storage/`), so there's no Docker or server to set
 up while developing. For deployment it swaps to Qdrant Cloud with one line. Each repo gets
