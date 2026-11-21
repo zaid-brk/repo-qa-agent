@@ -9,7 +9,13 @@ from pathlib import Path
 
 # File types worth indexing. Add more as needed.
 CODE_EXTENSIONS = {".py", ".js", ".ts", ".tsx", ".jsx", ".java", ".go",
-                   ".rs", ".c", ".cpp", ".h", ".md", ".json", ".yaml", ".yml"}
+                   ".rs", ".c", ".cpp", ".h", ".md", ".json", ".yaml", ".yml",
+                   # config (pyproject.toml/setup.cfg declare entry points) and docs
+                   ".toml", ".cfg", ".rst", ".txt"}
+# Generated files: huge, cost embedding money, and drown search results in noise.
+SKIP_FILES = {"package-lock.json", "yarn.lock", "pnpm-lock.yaml", "poetry.lock",
+              "Cargo.lock", "uv.lock", "Pipfile.lock", "composer.lock"}
+MAX_FILE_BYTES = 200_000
 # Folders that are noise, not code.
 SKIP_DIRS = {".git", "node_modules", ".venv", "__pycache__", "dist", "build"}
 
@@ -28,7 +34,9 @@ def collect_files(repo_path: str):
             continue
         if any(part in SKIP_DIRS for part in path.parts):
             continue
-        if path.suffix not in CODE_EXTENSIONS:
+        if path.suffix not in CODE_EXTENSIONS or path.name in SKIP_FILES:
+            continue
+        if path.stat().st_size > MAX_FILE_BYTES:
             continue
         try:
             text = path.read_text(encoding="utf-8")
