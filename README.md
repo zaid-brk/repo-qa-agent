@@ -14,7 +14,7 @@ I built a web app where you paste a GitHub repo URL, it indexes the code, and th
 ask questions like "where is authentication handled?" or "what does raise_for_status do?"
 and get answers grounded in the actual source, with the files cited. Under the hood it's
 retrieval-augmented generation (RAG) upgraded to an agent that can search, list files, and
-read whole files across multiple hops, plus a 50-question evaluation harness that measures
+read whole files across multiple hops, plus a 67-question evaluation harness that measures
 how accurate it actually is.
 
 **Live API:** https://repo-qa-agent.onrender.com/docs (FastAPI backend on Render, Qdrant Cloud as the vector store). Free tier spins down after inactivity, so the first request can take ~50s to wake up.
@@ -58,24 +58,30 @@ its own collection so several repos can be indexed and evaluated side by side.
 ## The eval harness (the part I care about most)
 
 Anyone can wire up an agent. Knowing whether it's *right* is the part I care about, so I wrote
-50 questions with known correct answers across three real codebases, requests, click, and
-flask, by reading their source and checking every answer. Four question types:
+67 questions with known correct answers across four real codebases, requests, click, flask
+and itsdangerous, by reading their source and checking every answer. Five question types:
 
-- **Factual** — "what is the default number of retries?"
-- **Locational** — "which file defines the Session class?"
-- **Explanatory** — "how are Flask's client-side sessions secured?"
-- **Should-say-I-don't-know** — "what ORM ships inside Flask?" (there isn't one; this catches hallucination)
+- **Factual:** "what is the default number of retries?"
+- **Locational:** "which file defines the Session class?"
+- **Explanatory:** "how are Flask's client-side sessions secured?"
+- **Cross-file:** "trace a timeout passed to requests.get() down to urllib3" (needs two or more files)
+- **Should-say-I-don't-know:** "what ORM ships inside Flask?" (there isn't one; this catches hallucination)
 
 Explanatory answers can't be string-matched, so a stronger model (gpt-4o) grades each answer
-against the ground truth — the LLM-as-judge pattern. The judge can be wrong too, which is a
+against the ground truth: the LLM-as-judge pattern. The judge can be wrong too, which is a
 known limitation of the pattern; using a judge stronger than the agent keeps it reliable enough.
 
-`eval/run_eval.py` runs the whole thing and reports overall and per-repo accuracy.
+`eval/run_eval.py` runs the whole thing and reports accuracy overall, per repo and per question
+type. `--runs 3` asks every question three times and only counts it if all three pass, since a
+wrong answer that shows up one time in three is still a bug. It also checks whether each answer
+cites the right file, and records tool calls and seconds per answer.
 `--naive` runs the same questions through plain single-shot RAG, so the agent's multi-hop
 advantage is measured, not assumed. Tuning happens one variable at a time and every run is
-recorded in `eval/tuning_log.md` — that log is the evidence behind any accuracy number.
+recorded in `eval/tuning_log.md`. That log is the evidence behind any accuracy number.
 
 ## Results
+
+### Original 50 questions
 
 Run on OpenAI (`gpt-4o-mini` agent, `text-embedding-3-small`, `gpt-4o` judge), all 50
 questions across `requests`, `click`, and `flask`:
@@ -89,12 +95,31 @@ Both approaches answer every question, including the should-say-I-don't-know tra
 correctly replies "I don't know" to "what ORM ships inside Flask?" and "what is the production
 database password?" instead of hallucinating). Per repo: requests 17/17, click 17/17, flask 16/16.
 
-**Honest read of this:** the benchmark is saturated — these questions are answerable from a
+**Honest read of this:** the benchmark is saturated. These questions are answerable from a
 single retrieval, so the multi-hop agent doesn't beat naive RAG here; both hit the ceiling.
 That means the interesting engineering (the tool-calling layer, multi-hop retrieval) doesn't
 show up as a number on *this* question set. A fair next step would be harder questions that
 force cross-file reasoning, where retrieve-once should start to fail. I'm reporting the real
 100/100 rather than manufacturing a gap that isn't there.
+
+It was worse than saturated: it scored 50/50 while the agent was answering two real questions
+wrong (see `eval/tuning_log.md`, run 2). That's why the benchmark grew.
+
+### Harder 67-question benchmark (partial)
+
+Agent only, 3 runs per question. The run stopped at question 44 when the API account ran out
+of credits, so this covers 50 of the 67 questions (all of requests and click, part of flask):
+
+| | Agent |
+|---|---|
+| Passed all 3 runs | 50/50 |
+| Cross-file questions | 7/7 |
+| Mean tool calls per answer | 1.8 |
+
+The new eval already found one bug before it stopped: on itsdangerous, "what are the main
+classes?" made the agent read files until it overflowed the model's 128k-token context and
+crashed (issue #15). Still to run: the remaining 17 questions, and the naive baseline on the
+cross-file set, which is the comparison that shows whether multi-hop retrieval earns its cost.
 
 ## Running it
 
@@ -106,7 +131,7 @@ cp .env.example .env      # paste your OpenAI key into .env
 python selftest.py                                    # offline checks, no key needed
 python index_repo.py https://github.com/psf/requests # index a repo
 python agent.py                                       # one test question
-python eval/run_eval.py                               # the 50-question benchmark
+python eval/run_eval.py --runs 3                      # the 67-question benchmark
 ```
 
 The web app:
@@ -130,7 +155,7 @@ CLI scripts like `index_repo.py` or the eval.
 | `answer.py` | Naive RAG baseline: retrieve once, answer from those chunks only. |
 | `tools.py` | The agent's tools: `search_code`, `list_files`, `read_file`. |
 | `agent.py` | The ReAct agent that chains those tools for multi-hop answers. |
-| `eval/ground_truth.json` | 50 hand-verified questions across requests, click, flask. |
+| `eval/ground_truth.json` | 67 hand-verified questions across requests, click, flask, itsdangerous. |
 | `eval/run_eval.py` | Benchmark runner with an LLM judge; `--naive` for the baseline. |
 | `eval/tuning_log.md` | Every tuning change and its measured effect, one variable at a time. |
 | `main.py` | FastAPI backend: `/index` and `/ask`. |
