@@ -73,6 +73,45 @@ def test_failed_clone_keeps_old_index():
     print("✓ failed clone leaves the existing index alone")
 
 
+def _fake_store(files: dict[str, str]):
+    """Point tools.py at an in-memory Qdrant holding these files, chunked as indexing would."""
+    import tools
+    c = QdrantClient(":memory:")
+    c.create_collection("chunks_fake", vectors_config=VectorParams(size=1, distance=Distance.COSINE))
+    c.upsert("chunks_fake", [
+        PointStruct(id=str(uuid.uuid4()), vector=[1.0], payload={"text": ch["text"], **ch["metadata"]})
+        for path, text in files.items() for ch in chunk_file(path, text)
+    ])
+    tools.client, tools.get_active_repo = c, lambda: "fake"
+    return tools
+
+
+def test_read_file_pages_big_files():
+    """One read_file call must not dump a huge file into the agent's context
+    (issue #15). Big files come back in capped pages with a hint to continue;
+    following the hints rebuilds the file exactly. Small files are untouched."""
+    import re
+    big = "".join(f"line {i}: some code here\n" for i in range(4000))   # ~100k chars
+    small = "x = 1\n"
+    tools = _fake_store({"big.py": big, "small.py": small})
+
+    assert tools.read_file.invoke({"file_path": "small.py"}) == small
+
+    pages, start = [], 0
+    while True:
+        out = tools.read_file.invoke({"file_path": "big.py", "start": start})
+        assert len(out) <= 21_000, len(out)
+        m = re.search(r"start=(\d+)", out)
+        if not m:
+            pages.append(out)
+            break
+        pages.append(out[:out.rindex("\n\n[Truncated")])
+        start = int(m.group(1))
+    assert "".join(pages) == big
+    assert len(pages) == 6, len(pages)   # 102,890 chars / 20,000 per page
+    print(f"✓ read_file pages a 100k-char file in {len(pages)} capped pages, small files exact")
+
+
 def test_collection_naming():
     assert repo_name_from_url("https://github.com/psf/requests") == "requests"
     assert repo_name_from_url("https://github.com/pallets/click.git") == "click"
@@ -105,6 +144,7 @@ if __name__ == "__main__":
     test_chunking()
     test_join_chunks_rebuilds_files_exactly()
     test_failed_clone_keeps_old_index()
+    test_read_file_pages_big_files()
     test_collection_naming()
     test_qdrant_roundtrip()
     test_imports_without_key()
