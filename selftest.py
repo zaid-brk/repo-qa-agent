@@ -112,6 +112,42 @@ def test_read_file_pages_big_files():
     print(f"✓ read_file pages a 100k-char file in {len(pages)} capped pages, small files exact")
 
 
+def test_runaway_agent_stays_in_context():
+    """Worst case for issue #15: a model that reads the same huge file every turn
+    and never answers. The loop must end on its own with a reply, and the context
+    the model is sent must stay well under gpt-4o-mini's 128k tokens (~4 chars
+    per token, so 400k chars is a ~100k-token budget)."""
+    from langchain_core.language_models.chat_models import BaseChatModel
+    from langchain_core.messages import AIMessage
+    from langchain_core.outputs import ChatGeneration, ChatResult
+    import agent
+
+    seen = []
+
+    class AlwaysReads(BaseChatModel):
+        @property
+        def _llm_type(self):
+            return "always-reads"
+
+        def bind_tools(self, tools, **kwargs):
+            return self
+
+        def _generate(self, messages, stop=None, run_manager=None, **kwargs):
+            seen.append(sum(len(str(m.content)) for m in messages))
+            call = {"name": "read_file", "args": {"file_path": "huge.py"}, "id": f"c{len(seen)}"}
+            return ChatResult(generations=[ChatGeneration(message=AIMessage(content="", tool_calls=[call]))])
+
+    _fake_store({"huge.py": "x = 1  # padding\n" * 30_000})   # ~510k chars
+    agent.get_llm, agent._agent = AlwaysReads, None
+    try:
+        answer, trace = agent.ask_traced("read everything")
+    finally:
+        agent._agent = None
+    assert answer == agent.OUT_OF_STEPS, answer
+    assert max(seen) < 400_000, max(seen)
+    print(f"✓ runaway agent stopped after {len(trace)} reads, peak context {max(seen):,} chars")
+
+
 def test_collection_naming():
     assert repo_name_from_url("https://github.com/psf/requests") == "requests"
     assert repo_name_from_url("https://github.com/pallets/click.git") == "click"
@@ -145,6 +181,7 @@ if __name__ == "__main__":
     test_join_chunks_rebuilds_files_exactly()
     test_failed_clone_keeps_old_index()
     test_read_file_pages_big_files()
+    test_runaway_agent_stays_in_context()
     test_collection_naming()
     test_qdrant_roundtrip()
     test_imports_without_key()
