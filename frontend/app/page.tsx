@@ -20,6 +20,9 @@ function citedFiles(r: Result): string[] {
 export default function Home() {
   const [repoUrl, setRepoUrl] = useState("");
   const [indexNote, setIndexNote] = useState("");
+  // The repo this visitor indexed, sent with every question so another
+  // visitor indexing a different repo doesn't change our answers.
+  const [repo, setRepo] = useState<string | undefined>();
   const [q, setQ] = useState("");
   const [result, setResult] = useState<Result | null>(null);
   const [busy, setBusy] = useState(false);
@@ -37,6 +40,7 @@ export default function Home() {
         body: JSON.stringify({ github_url: repoUrl }),
       });
       const data = await res.json().catch(() => ({}));
+      if (res.ok) setRepo(data.repo);
       setIndexNote(res.ok ? `Indexed ${data.chunks} chunks. Ask away.` : data.detail ?? "Indexing failed.");
     } catch {
       setIndexNote(`Could not reach the API at ${API}.`);
@@ -53,10 +57,10 @@ export default function Home() {
       const res = await fetch(`${API}/ask`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question }),
+        body: JSON.stringify({ question, repo }),
       });
-      const data = await res.json();
-      setResult({ question, answer: data.answer, trace: data.trace ?? [] });
+      const data = await res.json().catch(() => ({}));
+      setResult({ question, answer: data.answer ?? data.detail ?? "Something went wrong.", trace: data.trace ?? [] });
     } catch {
       setResult({
         question,

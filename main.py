@@ -12,7 +12,7 @@ from pydantic import BaseModel
 
 from index_repo import index_repo
 from agent import ask_traced
-from store import get_active_repo
+from store import get_active_repo, indexed_repos, repo_name_from_url
 
 app = FastAPI(title="Repo Q&A Agent")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
@@ -24,6 +24,7 @@ class IndexReq(BaseModel):
 
 class AskReq(BaseModel):
     question: str
+    repo: str | None = None   # the repo this caller indexed; None = the active repo
 
 
 @app.post("/index")
@@ -32,12 +33,14 @@ def index(req: IndexReq):
         chunks = index_repo(req.github_url)
     except ValueError as e:
         raise HTTPException(400, str(e))
-    return {"status": "indexed", "chunks": chunks}
+    return {"status": "indexed", "chunks": chunks, "repo": repo_name_from_url(req.github_url)}
 
 
 @app.post("/ask")
 def ask_endpoint(req: AskReq):
-    answer, trace = ask_traced(req.question)
+    if req.repo is not None and req.repo not in indexed_repos():
+        raise HTTPException(400, f"Repo '{req.repo}' is not indexed. Index it first.")
+    answer, trace = ask_traced(req.question, req.repo)
     return {"answer": answer, "trace": trace}
 
 
