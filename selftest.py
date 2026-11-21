@@ -13,7 +13,7 @@ from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, VectorParams, PointStruct
 
 from ingest import collect_files
-from chunk import chunk_file
+from chunk import chunk_file, join_chunks
 from store import repo_name_from_url, collection_for
 
 
@@ -23,9 +23,14 @@ def test_collect_files():
     (d / "skip.png").write_bytes(b"\x89PNG")
     (d / "node_modules").mkdir()
     (d / "node_modules" / "junk.js").write_text("var x = 1")
+    (d / "pyproject.toml").write_text("[project.scripts]")
+    (d / "index.rst").write_text("Docs")
+    (d / "package-lock.json").write_text("{}")
+    (d / "huge.json").write_text("x" * 300_000)
     got = dict(collect_files(str(d)))
-    assert got == {"keep.py": "print('hi')"}, got
-    print("✓ collect_files keeps code, skips binaries and node_modules")
+    assert got == {"keep.py": "print('hi')", "pyproject.toml": "[project.scripts]",
+                   "index.rst": "Docs"}, got
+    print("✓ collect_files keeps code/config/docs, skips binaries, node_modules, lockfiles, huge files")
 
 
 def test_chunking():
@@ -33,10 +38,39 @@ def test_chunking():
     chunks = chunk_file("big.py", text)
     assert len(chunks) > 1
     assert all(len(c["text"]) <= 1000 for c in chunks)
-    assert chunks[0]["metadata"] == {"file": "big.py", "chunk_index": 0}
+    assert chunks[0]["metadata"] == {"file": "big.py", "chunk_index": 0, "start": 0}
     small = chunk_file("small.py", "x = 1")
     assert len(small) == 1
     print(f"✓ chunking: {len(chunks)} chunks, all <=1000 chars, metadata intact")
+
+
+def test_join_chunks_rebuilds_files_exactly():
+    """read_file rebuilds a file from overlapping chunks. Must equal the original:
+    no repeated overlap at the seams, nothing dropped between chunks."""
+    texts = [p.read_text() for p in Path(__file__).parent.glob("*.py")]
+    texts += ["def f():\n    pass\n\n" * 200, "x = 1\n" * 300 + "\n\n\n", "a b " * 3000, "x" * 5000, ""]
+    for t in texts:
+        cs = chunk_file("f.py", t)
+        assert join_chunks([(c["metadata"]["start"], c["text"]) for c in cs]) == t
+    print(f"✓ join_chunks rebuilds {len(texts)} files exactly")
+
+
+def test_failed_clone_keeps_old_index():
+    """A bad URL must not wipe the repo's existing vectors."""
+    import index_repo as ir
+    calls = []
+    def bad_clone(url, dest):
+        raise RuntimeError("clone failed")
+    orig = ir.clone_repo, ir.reset_collection
+    ir.clone_repo, ir.reset_collection = bad_clone, calls.append
+    try:
+        ir.index_repo("https://github.com/x/y")
+    except RuntimeError:
+        pass
+    finally:
+        ir.clone_repo, ir.reset_collection = orig
+    assert calls == [], calls
+    print("✓ failed clone leaves the existing index alone")
 
 
 def test_collection_naming():
@@ -69,6 +103,8 @@ def test_imports_without_key():
 if __name__ == "__main__":
     test_collect_files()
     test_chunking()
+    test_join_chunks_rebuilds_files_exactly()
+    test_failed_clone_keeps_old_index()
     test_collection_naming()
     test_qdrant_roundtrip()
     test_imports_without_key()
