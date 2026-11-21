@@ -148,6 +148,24 @@ def test_runaway_agent_stays_in_context():
     print(f"✓ runaway agent stopped after {len(trace)} reads, peak context {max(seen):,} chars")
 
 
+def test_search_code_shows_line_ranges():
+    """Each hit says which lines it covers, so answers can cite path:line."""
+    text = "".join(f"line {i}\n" for i in range(1, 400))     # each line names itself
+    tools = _fake_store({"src/a.py": text})
+    hits = [{"score": 0.9, **p.payload} for p in tools.client.scroll("chunks_fake", limit=100)[0]]
+    hits.sort(key=lambda h: h["chunk_index"])
+    orig = tools.search
+    tools.search = lambda query, top_k=5, collection=None: hits[1:3]
+    try:
+        out = tools.search_code.invoke({"query": "x"})
+    finally:
+        tools.search = orig
+    for h in hits[1:3]:
+        first, last = h["text"].split()[1], h["text"].rstrip().split()[-1]
+        assert f"--- src/a.py:{first}-{last} (similarity 0.90) ---" in out, (first, last, out[:300])
+    print("✓ search_code hits show their line ranges")
+
+
 def test_find_symbol():
     """Exact definitions with line numbers, which semantic search is bad at
     ("class " scored below unrelated concepts on itsdangerous, issue #9)."""
@@ -305,6 +323,7 @@ if __name__ == "__main__":
     test_failed_clone_keeps_old_index()
     test_read_file_pages_big_files()
     test_runaway_agent_stays_in_context()
+    test_search_code_shows_line_ranges()
     test_find_symbol()
     test_index_rejects_non_github_urls()
     test_missing_repo_is_a_clear_400()

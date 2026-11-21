@@ -42,10 +42,34 @@ def _collection(config: RunnableConfig) -> str:
     return collection_for(repo)
 
 
+def _file_text(collection: str, file_path: str) -> str:
+    """Reassemble one file from its chunks, in order, without the overlap."""
+    points, _ = client.scroll(
+        collection, limit=1000, with_payload=True,
+        # Filter model, not a raw dict — local file-mode Qdrant doesn't parse dicts.
+        scroll_filter=Filter(must=[FieldCondition(key="file", match=MatchValue(value=file_path))]),
+    )
+    chunks = sorted(points, key=lambda p: p.payload.get("chunk_index", 0))
+    return join_chunks([(c.payload.get("start"), c.payload["text"]) for c in chunks])
+
+
+def _lines(collection: str, hit: dict, files: dict) -> str:
+    """':first-last' line range a hit covers, or '' for chunks indexed before
+    start offsets were stored. Lines come from the offset, so no re-index."""
+    if hit.get("start") is None:
+        return ""
+    if hit["file"] not in files:
+        files[hit["file"]] = _file_text(collection, hit["file"])
+    lead = len(hit["text"]) - len(hit["text"].lstrip())   # chunks open with the previous newline
+    first = files[hit["file"]][: hit["start"] + lead].count("\n") + 1
+    return f":{first}-{first + hit['text'].strip().count(chr(10))}"
+
+
 @tool
 def search_code(query: str, config: RunnableConfig) -> str:
     """Search the codebase for snippets relevant to a natural-language query."""
-    hits = search(query, top_k=5, collection=_collection(config))
+    collection = _collection(config)
+    hits = search(query, top_k=5, collection=collection)
     if not hits:
         return "No chunks are stored for this repo."
     note = (
@@ -57,8 +81,10 @@ def search_code(query: str, config: RunnableConfig) -> str:
             else "That is a solid match."
         )
     )
+    files = {}
     body = "\n\n".join(
-        f"--- {h['file']} (similarity {h['score']:.2f}) ---\n{h['text']}" for h in hits
+        f"--- {h['file']}{_lines(collection, h, files)} (similarity {h['score']:.2f}) ---\n{h['text']}"
+        for h in hits
     )
     return f"{note}\n\n{body}"
 
@@ -127,15 +153,7 @@ def find_symbol(config: RunnableConfig, name: str = "") -> str:
 def read_file(file_path: str, config: RunnableConfig, start: int = 0) -> str:
     """Read one indexed file by its path. Long files come back in pages: pass the
     start offset given at the end of a page to read the next one."""
-    collection = _collection(config)
-    points, _ = client.scroll(
-        collection, limit=1000, with_payload=True,
-        # Filter model, not a raw dict — local file-mode Qdrant doesn't parse dicts.
-        scroll_filter=Filter(must=[FieldCondition(key="file", match=MatchValue(value=file_path))]),
-    )
-    # Reassemble the file from its chunks, in order, without the overlap between them.
-    chunks = sorted(points, key=lambda p: p.payload.get("chunk_index", 0))
-    text = join_chunks([(c.payload.get("start"), c.payload["text"]) for c in chunks])
+    text = _file_text(_collection(config), file_path)
     if not text:
         return f"File not found: {file_path}"
     end = start + MAX_READ_CHARS
