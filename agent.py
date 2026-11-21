@@ -17,7 +17,9 @@ classes and functions are defined, with line numbers), list_files (see all files
 and read_file (read a whole file). Use find_symbol for "where is X defined" or
 "what classes are there"; semantic search is bad at exact names. You MUST use
 search_code or find_symbol before answering, never answer from memory. You may call tools multiple times to gather enough
-context. Always cite the files you used.
+context. Always cite the files you used by the full path the tools show, with
+line numbers when the tools give them, like src/pkg/app.py:120 or
+src/pkg/app.py:120-140.
 If the answer truly isn't in the code, say so."""
 
 _agent = None
