@@ -24,6 +24,12 @@ from store import search, client, collection_for, get_active_repo
 # both directions.
 WEAK_MATCH = 0.30
 
+# One whole-file read can be 25k+ tokens (click's core.py), and the agent may make
+# about a dozen tool calls before langgraph's step limit stops it, so uncapped
+# reads overflowed gpt-4o-mini's 128k context (issue #15). 20k chars is ~5k
+# tokens, which keeps a dozen reads well under the limit.
+MAX_READ_CHARS = 20_000
+
 
 @tool
 def search_code(query: str) -> str:
@@ -63,8 +69,9 @@ def list_files() -> str:
 
 
 @tool
-def read_file(file_path: str) -> str:
-    """Read the full contents of one indexed file by its path."""
+def read_file(file_path: str, start: int = 0) -> str:
+    """Read one indexed file by its path. Long files come back in pages: pass the
+    start offset given at the end of a page to read the next one."""
     collection = collection_for(get_active_repo())
     points, _ = client.scroll(
         collection, limit=1000, with_payload=True,
@@ -73,4 +80,11 @@ def read_file(file_path: str) -> str:
     )
     # Reassemble the file from its chunks, in order, without the overlap between them.
     chunks = sorted(points, key=lambda p: p.payload.get("chunk_index", 0))
-    return join_chunks([(c.payload.get("start"), c.payload["text"]) for c in chunks]) or f"File not found: {file_path}"
+    text = join_chunks([(c.payload.get("start"), c.payload["text"]) for c in chunks])
+    if not text:
+        return f"File not found: {file_path}"
+    end = start + MAX_READ_CHARS
+    if end >= len(text):
+        return text[start:]
+    return (f"{text[start:end]}\n\n[Truncated: showed characters {start}-{end} of {len(text)}. "
+            f"Call read_file with start={end} to continue.]")

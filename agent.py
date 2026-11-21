@@ -5,6 +5,7 @@ decides to call one, sees the result, and decides whether it can answer or needs
 another call. Reason + Act, repeated. This is what turns "retrieve once and hope"
 into an agent that can chase an answer across multiple files.
 """
+from langgraph.errors import GraphRecursionError
 from langgraph.prebuilt import create_react_agent
 
 from llm import get_llm
@@ -18,6 +19,15 @@ context. Always cite the files you used.
 If the answer truly isn't in the code, say so."""
 
 _agent = None
+
+# langgraph's default step limit is 10,007, so nothing stopped the loop except the
+# model's 128k context overflowing (issue #15). 25 steps is about 12 tool calls,
+# plenty for the 5-10 hop questions, and with read_file capped at 20k chars it
+# keeps the worst case near 60k tokens. langgraph's docs say running out of steps
+# returns a reply, but 1.2.8 raises GraphRecursionError, so ask_traced catches it.
+MAX_STEPS = 25
+OUT_OF_STEPS = ("I ran out of steps before finding a complete answer. "
+                "Try a narrower question, or name the file or class you mean.")
 
 
 def get_agent():
@@ -35,13 +45,23 @@ def ask_traced(question: str) -> tuple[str, list[dict]]:
     instead of throwing it away — the trace is what shows a second search or a
     read_file actually happened rather than one blind retrieval.
     """
-    result = get_agent().invoke({"messages": [("user", question)]})
+    # Stream instead of invoke so the steps taken so far survive hitting the limit.
+    state = None
+    try:
+        for state in get_agent().stream(
+            {"messages": [("user", question)]},
+            config={"recursion_limit": MAX_STEPS}, stream_mode="values",
+        ):
+            pass
+        answer = state["messages"][-1].content
+    except GraphRecursionError:
+        answer = OUT_OF_STEPS
     trace = [
         {"tool": call["name"], "input": call["args"]}
-        for msg in result["messages"]
+        for msg in (state or {}).get("messages", [])
         for call in getattr(msg, "tool_calls", []) or []
     ]
-    return result["messages"][-1].content, trace
+    return answer, trace
 
 
 def ask(question: str) -> str:
