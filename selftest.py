@@ -157,7 +157,7 @@ def test_find_symbol():
                          "broken.py": "def oops(:\n", "README.md": "class Signer in docs"})
     find = lambda name="": tools.find_symbol.invoke({"name": name})
     assert find("Signer") == "src/signer.py:4 class Signer", find("Signer")
-    assert find("sign") == "src/signer.py:4 class Signer\nsrc/signer.py:5 def Signer.sign", find("sign")
+    assert find("sign") == "src/signer.py:5 def Signer.sign\nsrc/signer.py:4 class Signer", find("sign")  # exact first
     assert find("serializer") == ("src/serializer.py:1 class Serializer\n"
                                   "src/serializer.py:5 class URLSafeSerializer"), find("serializer")
     assert find("want_bytes") == "src/signer.py:9 def want_bytes", find("want_bytes")

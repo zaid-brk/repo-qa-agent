@@ -9,12 +9,14 @@ from langgraph.errors import GraphRecursionError
 from langgraph.prebuilt import create_react_agent
 
 from llm import get_llm
-from tools import search_code, list_files, read_file
+from tools import search_code, list_files, read_file, find_symbol
 
 SYSTEM = """You are an expert code assistant. Answer questions about a codebase.
-You have three tools: search_code (semantic search), list_files (see all files),
-and read_file (read a whole file). You MUST use search_code before answering —
-never answer from memory. You may call tools multiple times to gather enough
+You have four tools: search_code (semantic search), find_symbol (where Python
+classes and functions are defined, with line numbers), list_files (see all files),
+and read_file (read a whole file). Use find_symbol for "where is X defined" or
+"what classes are there"; semantic search is bad at exact names. You MUST use
+search_code or find_symbol before answering, never answer from memory. You may call tools multiple times to gather enough
 context. Always cite the files you used.
 If the answer truly isn't in the code, say so."""
 
@@ -34,7 +36,7 @@ def get_agent():
     """Built once, reused across questions (and lazily, so import needs no API key)."""
     global _agent
     if _agent is None:
-        _agent = create_react_agent(get_llm(), [search_code, list_files, read_file], prompt=SYSTEM)
+        _agent = create_react_agent(get_llm(), [search_code, find_symbol, list_files, read_file], prompt=SYSTEM)
     return _agent
 
 

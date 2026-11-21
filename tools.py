@@ -115,7 +115,8 @@ def find_symbol(config: RunnableConfig, name: str = "") -> str:
     if not found:
         return (f"No Python class or function matching '{name}'. "
                 "Try a shorter name, or search_code for non-Python files.")
-    found.sort()
+    # Exact name first ("Signer" before make_signer), then by file and line.
+    found.sort(key=lambda f: (f[2].rsplit(".", 1)[-1].split()[-1].lower() != name.lower(), f))
     lines = [f"{path}:{line} {what}" for path, line, what in found]
     if len(lines) > MAX_SYMBOLS:
         lines = lines[:MAX_SYMBOLS] + [f"[{len(found) - MAX_SYMBOLS} more. Use a more specific name.]"]
