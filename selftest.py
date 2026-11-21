@@ -148,6 +148,43 @@ def test_runaway_agent_stays_in_context():
     print(f"✓ runaway agent stopped after {len(trace)} reads, peak context {max(seen):,} chars")
 
 
+def test_index_rejects_non_github_urls():
+    """/index must only clone https://github.com/<owner>/<repo>. Anything else
+    is a 400 and git is never run."""
+    import index_repo as ir
+    from fastapi.testclient import TestClient
+    import main
+
+    cloned = []
+    class Stop(Exception):
+        pass
+    def fake_clone(url, dest):
+        cloned.append(url)
+        raise Stop
+    orig = ir.clone_repo
+    ir.clone_repo = fake_clone
+    try:
+        client = TestClient(main.app, raise_server_exceptions=False)
+        bad = [
+            "file:///etc", "ssh://git@github.com/psf/requests", "git@github.com:psf/requests.git",
+            "http://github.com/psf/requests", "https://gitlab.com/psf/requests",
+            "https://github.com/psf", "https://github.com/psf/requests/tree/main",
+            "https://github.com.evil.com/psf/requests", "https://user@github.com/psf/requests",
+            "--upload-pack=touch /tmp/x", "https://github.com/psf/requests\n", "",
+        ]
+        for url in bad:
+            r = client.post("/index", json={"github_url": url})
+            assert r.status_code == 400, (url, r.status_code)
+        assert cloned == [], cloned
+        for url in ["https://github.com/psf/requests", "https://github.com/pallets/click.git",
+                    "https://github.com/a-b/c_d.e/"]:
+            client.post("/index", json={"github_url": url})
+        assert len(cloned) == 3, cloned
+    finally:
+        ir.clone_repo = orig
+    print("✓ /index rejects anything but https://github.com/<owner>/<repo>")
+
+
 def test_collection_naming():
     assert repo_name_from_url("https://github.com/psf/requests") == "requests"
     assert repo_name_from_url("https://github.com/pallets/click.git") == "click"
@@ -182,6 +219,7 @@ if __name__ == "__main__":
     test_failed_clone_keeps_old_index()
     test_read_file_pages_big_files()
     test_runaway_agent_stays_in_context()
+    test_index_rejects_non_github_urls()
     test_collection_naming()
     test_qdrant_roundtrip()
     test_imports_without_key()

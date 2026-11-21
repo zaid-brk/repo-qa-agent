@@ -6,7 +6,7 @@ CORS is open (*) because the Next.js dev server runs on a different port and
 browsers block cross-origin calls unless the API allows them. Fine for a demo;
 lock allow_origins down to the real frontend URL in production.
 """
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -28,7 +28,10 @@ class AskReq(BaseModel):
 
 @app.post("/index")
 def index(req: IndexReq):
-    chunks = index_repo(req.github_url)
+    try:
+        chunks = index_repo(req.github_url)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
     return {"status": "indexed", "chunks": chunks}
 
 
