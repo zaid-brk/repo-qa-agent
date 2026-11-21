@@ -23,7 +23,7 @@ how accurate it actually is.
 
 [Watch the demo on Loom](https://www.loom.com/share/12029311091b493395c86c3842e175d7)
 
-(It's worth noting that the codebase has been edit and improved since this demo was filmed - new demo will be out soon)
+(It's worth noting that the codebase has been edited and improved since this demo was filmed - new demo will be out soon)
 
 ## How it works
 
