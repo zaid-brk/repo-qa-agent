@@ -36,7 +36,7 @@ GitHub URL ──> ingest (shallow clone) ──> chunk (code-aware splits)
                                               v
                                    Qdrant (vector store)
                                               ^
-                            search_code / list_files / read_file
+                search_code / find_symbol / list_files / read_file
                                               │
 question ──────────────────────────> ReAct agent (gpt-4o-mini) ──> answer + cited files
 ```
@@ -49,7 +49,9 @@ question ───────────────────────�
    makes "how are retries handled?" land near retry code even with zero shared keywords.
 4. **Agent** - instead of retrieve-once-and-hope, a ReAct agent decides what to do: search,
    see it needs the full file, read it, search again. That's multi-hop retrieval, and it's
-   what handles questions whose answers span several files.
+   what handles questions whose answers span several files. For exact names ("where is
+   `Session` defined?") it has `find_symbol`, which parses the indexed Python files with
+   `ast` and returns each definition's file and line, since embeddings are bad at syntax.
 
 Qdrant runs in local file mode (`qdrant_storage/`), so there's no Docker or server to set
 up while developing. For deployment it swaps to Qdrant Cloud with one line. Each repo gets
@@ -153,7 +155,7 @@ CLI scripts like `index_repo.py` or the eval.
 | `store.py` | Embeddings + Qdrant storage and cosine search; per-repo collections. |
 | `index_repo.py` | One command: clone → chunk → embed → store. |
 | `answer.py` | Naive RAG baseline: retrieve once, answer from those chunks only. |
-| `tools.py` | The agent's tools: `search_code`, `list_files`, `read_file`. |
+| `tools.py` | The agent's tools: `search_code`, `find_symbol`, `list_files`, `read_file`. |
 | `agent.py` | The ReAct agent that chains those tools for multi-hop answers. |
 | `eval/ground_truth.json` | 67 hand-verified questions across requests, click, flask, itsdangerous. |
 | `eval/run_eval.py` | Benchmark runner with an LLM judge; `--naive` for the baseline. |
