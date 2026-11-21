@@ -3,6 +3,7 @@
 Shallow clone (--depth 1 = latest commit only, no history — a big repo's history
 can be gigabytes we don't need), then walk every file and keep only real code.
 """
+import os
 import subprocess
 import tempfile
 from pathlib import Path
@@ -22,7 +23,12 @@ SKIP_DIRS = {".git", "node_modules", ".venv", "__pycache__", "dist", "build"}
 
 def clone_repo(github_url: str, dest: str) -> str:
     """Shallow-clone a repo (--depth 1 = just latest commit, faster)."""
-    subprocess.run(["git", "clone", "--depth", "1", github_url, dest], check=True)
+    # No credential prompt: a missing or private repo fails fast instead of hanging.
+    env = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
+    try:
+        subprocess.run(["git", "clone", "--depth", "1", github_url, dest], check=True, env=env)
+    except subprocess.CalledProcessError:
+        raise ValueError(f"Could not clone {github_url}. Check the repo exists and is public.")
     return dest
 
 
