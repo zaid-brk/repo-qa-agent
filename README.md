@@ -17,7 +17,7 @@ retrieval-augmented generation (RAG) upgraded to an agent that can search, list 
 read whole files across multiple hops, plus a 67-question evaluation harness that measures
 how accurate it actually is.
 
-**Live API:** https://repo-qa-agent.onrender.com/docs (FastAPI backend on Render, Qdrant Cloud as the vector store). Free tier spins down after inactivity, so the first request can take ~50s to wake up.
+**Live API:** https://repo-qa-agent.onrender.com/docs (FastAPI backend on Render, Qdrant Cloud as the vector store). Currently down: the free Qdrant cluster was deleted for inactivity and is being replaced (issue #13). The free tier also spins down when idle, so the first request can take ~50s to wake up.
 
 ## Demo
 
@@ -38,26 +38,33 @@ GitHub URL ──> ingest (shallow clone) ──> chunk (code-aware splits)
                                               ^
                 search_code / find_symbol / list_files / read_file
                                               │
-question ──────────────────────────> ReAct agent (gpt-4o-mini) ──> answer + cited files
+question ──────────────────────────> ReAct agent (gpt-4o-mini) ──> answer + path:line links
 ```
 
-1. **Ingest** — shallow-clone the repo, keep only code files (skip binaries, node_modules, etc.).
-2. **Chunk** — split files into ~1000-char pieces with 150 overlap. The splitter prefers
-   `\nclass ` and `\ndef ` boundaries so whole functions stay together — a real improvement
-   over default splitting for code.
-3. **Embed + store** — each chunk becomes a 1536-dim vector in Qdrant. Cosine similarity
+1. **Ingest:** only `https://github.com/<owner>/<repo>` URLs are accepted, since the URL goes
+   to `git clone` on a public server. Shallow-clone it and keep code, config and docs files,
+   skipping binaries, `node_modules`, lockfiles and anything over 200KB (generated files cost
+   embedding money and drown search results in noise).
+2. **Chunk:** split files into ~1000-char pieces with 150 overlap. The splitter prefers
+   `\nclass ` and `\ndef ` boundaries so whole functions stay together, a real improvement
+   over default splitting for code. Each chunk keeps its offset in the file, so files can be
+   rebuilt exactly and every hit knows its line numbers.
+3. **Embed + store:** each chunk becomes a 1536-dim vector in Qdrant. Cosine similarity
    makes "how are retries handled?" land near retry code even with zero shared keywords.
-4. **Agent** - instead of retrieve-once-and-hope, a ReAct agent decides what to do: search,
+4. **Agent:** instead of retrieve-once-and-hope, a ReAct agent decides what to do: search,
    see it needs the full file, read it, search again. That's multi-hop retrieval, and it's
    what handles questions whose answers span several files. For exact names ("where is
    `Session` defined?") it has `find_symbol`, which parses the indexed Python files with
    `ast` and returns each definition's file and line, since embeddings are bad at syntax.
    Answers cite `path:line`, and the API links each citation to those lines on GitHub at
-   the exact commit that was indexed.
+   the exact commit that was indexed. Two guard rails keep it inside the model's context:
+   `read_file` returns long files in 20k-character pages, and the agent stops after 25
+   steps with a clear "ran out of steps" reply instead of crashing.
 
 Qdrant runs in local file mode (`qdrant_storage/`), so there's no Docker or server to set
 up while developing. For deployment it swaps to Qdrant Cloud with one line. Each repo gets
-its own collection so several repos can be indexed and evaluated side by side.
+its own collection so several repos can be indexed and evaluated side by side, and `/ask`
+takes the repo per request, so two visitors asking about different repos don't interfere.
 
 ## The eval harness (the part I care about most)
 
@@ -120,9 +127,10 @@ of credits, so this covers 50 of the 67 questions (all of requests and click, pa
 | Cross-file questions | 7/7 |
 | Mean tool calls per answer | 1.8 |
 
-The new eval already found one bug before it stopped: on itsdangerous, "what are the main
-classes?" made the agent read files until it overflowed the model's 128k-token context and
-crashed (issue #15). Still to run: the remaining 17 questions, and the naive baseline on the
+The new eval found one bug before it stopped: on itsdangerous, "what are the main classes?"
+made the agent read whole files until it overflowed the model's 128k-token context and
+crashed (issue #15). That's fixed by the paging and step limit above, and `find_symbol` now
+answers that question directly. Still to run: the remaining 17 questions, and the naive baseline on the
 cross-file set, which is the comparison that shows whether multi-hop retrieval earns its cost.
 
 ## Running it
