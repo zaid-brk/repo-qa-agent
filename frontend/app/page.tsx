@@ -37,7 +37,7 @@ export default function Home() {
         body: JSON.stringify({ github_url: repoUrl }),
       });
       const data = await res.json();
-      setIndexNote(`Indexed ${data.chunks} chunks. Ask away.`);
+      setIndexNote(res.ok ? `Indexed ${data.chunks} chunks. Ask away.` : data.detail ?? "Indexing failed.");
     } catch {
       setIndexNote(`Could not reach the API at ${API}.`);
     }

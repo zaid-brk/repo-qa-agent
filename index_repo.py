@@ -2,6 +2,7 @@
 
 Usage: python index_repo.py https://github.com/psf/requests
 """
+import re
 import sys
 import tempfile
 
@@ -12,7 +13,14 @@ from store import (
 )
 
 
+# Only public GitHub repos over https. The URL goes to `git clone` on a public
+# server, so anything else (file://, ssh, other hosts, "-flags") is refused.
+GITHUB_URL = re.compile(r"https://github\.com/[A-Za-z0-9-]+/[A-Za-z0-9._-]+?(\.git)?/?")
+
+
 def index_repo(github_url: str):
+    if not GITHUB_URL.fullmatch(github_url):
+        raise ValueError("Only https://github.com/<owner>/<repo> URLs are supported.")
     repo = repo_name_from_url(github_url)
     collection = collection_for(repo)
     with tempfile.TemporaryDirectory() as dest:   # clone is deleted afterwards
