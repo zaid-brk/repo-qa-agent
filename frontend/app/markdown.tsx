@@ -5,10 +5,20 @@ import { Fragment, type ReactNode } from "react";
  * there is no dangerouslySetInnerHTML and no HTML injection from model output.
  */
 
-const INLINE = /(`[^`]+`|\*\*[^*]+\*\*)/g;
+// Links only to github.com: the backend adds them for citations, and anything
+// else in model output (javascript:, other hosts) stays plain text.
+const INLINE = /(\[[^\]\n]+\]\(https:\/\/github\.com\/[^)\s]+\)|`[^`]+`|\*\*[^*]+\*\*)/g;
+const LINK = /^\[([^\]\n]+)\]\((https:\/\/github\.com\/[^)\s]+)\)$/;
 
 function inline(text: string, key: string): ReactNode[] {
   return text.split(INLINE).map((part, i) => {
+    const link = part.match(LINK);
+    if (link)
+      return (
+        <a key={`${key}-${i}`} href={link[2]} target="_blank" rel="noopener noreferrer">
+          {inline(link[1], `${key}-${i}a`)}
+        </a>
+      );
     if (part.startsWith("`") && part.endsWith("`") && part.length > 1)
       return <code key={`${key}-${i}`}>{part.slice(1, -1)}</code>;
     // Bold often wraps a path in backticks (**`src/flask/app.py`**), so recurse

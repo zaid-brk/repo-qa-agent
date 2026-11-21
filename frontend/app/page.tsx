@@ -14,7 +14,7 @@ function citedFiles(r: Result): string[] {
   const fromTrace = r.trace
     .filter((h) => h.tool === "read_file")
     .map((h) => Object.values(h.input)[0]);
-  return [...new Set([...fromTrace, ...(r.answer.match(CODE_FILE) ?? [])])];
+  return [...new Set([...fromTrace, ...(r.answer.replace(/\]\([^)]*\)/g, "]").match(CODE_FILE) ?? [])])];
 }
 
 export default function Home() {
