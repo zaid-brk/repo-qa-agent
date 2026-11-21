@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Markdown } from "./markdown";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -23,6 +23,18 @@ export default function Home() {
   // The repo this visitor indexed, sent with every question so another
   // visitor indexing a different repo doesn't change our answers.
   const [repo, setRepo] = useState<string | undefined>();
+
+  // Remember the repo across reloads. Storage can be blocked (private mode),
+  // in which case we just fall back to the server's active repo.
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("repo");
+      if (saved) {
+        setRepo(saved);
+        setIndexNote(`Asking about ${saved}.`);
+      }
+    } catch {}
+  }, []);
   const [q, setQ] = useState("");
   const [result, setResult] = useState<Result | null>(null);
   const [busy, setBusy] = useState(false);
@@ -40,7 +52,12 @@ export default function Home() {
         body: JSON.stringify({ github_url: repoUrl }),
       });
       const data = await res.json().catch(() => ({}));
-      if (res.ok) setRepo(data.repo);
+      if (res.ok) {
+        setRepo(data.repo);
+        try {
+          localStorage.setItem("repo", data.repo);
+        } catch {}
+      }
       setIndexNote(res.ok ? `Indexed ${data.chunks} chunks. Ask away.` : data.detail ?? "Indexing failed.");
     } catch {
       setIndexNote(`Could not reach the API at ${API}.`);
