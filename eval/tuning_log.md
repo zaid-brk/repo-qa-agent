@@ -17,6 +17,7 @@ Levers, in the order worth trying:
 | 1 | agent baseline (multi-hop, defaults: 1000/150, top_k=5) | 100% (50/50) | |
 | 2 | `MIN_SCORE = 0.32` floor in `search_code` (tools.py) | 100% (50/50) | **reverted** — fixed one bug, caused another |
 | 3 | report similarity score to the agent instead of filtering | 100% (50/50) | fixes both |
+| 4 | new 67-question set, `--runs 3`, agent | 50/50 clean (partial) | stopped at Q44, out of API credits; see below |
 
 Runs 0 and 1 hit 100% on the first pass, so there was nothing to tune — no ✗ rows to form a
 hypothesis from. The benchmark is saturated: every question is answerable from a single
@@ -64,3 +65,28 @@ scored a clean 100% while the agent was actively broken in both directions.** Qu
 and 50 are the same shape of trap and passed throughout. A benchmark at 100% is not evidence
 the system is correct, only that the questions are too easy — the strongest argument yet for
 writing harder cross-file ones.
+
+## Run 4: harder benchmark, partial
+
+The question set grew from 50 to 67: twelve cross-file questions (each answer traced through
+the source by hand), itsdangerous as a fourth repo, and the two hand-found failures from run 2
+as regression tests. Each question now runs three times and only passes if all three do.
+
+Before the run, requests, click and flask were re-indexed with the fixed chunking (exact
+`read_file`, `.toml`/`.rst` indexed, lockfiles skipped).
+
+The run stopped at question 44 when the OpenAI account ran out of credits. Every call after
+that returned `429 insufficient_quota`. Those attempts are excluded; the harness now stops on
+quota and auth errors instead of scoring them as wrong answers.
+
+Clean results, 50 questions (requests, click, flask Q35 to Q43): every question passed all
+three runs, including 7/7 cross-file. Mean 1.8 tool calls per answer.
+
+A smoke test on itsdangerous before the full run found a new failure: question 62 ("what are
+the main classes here and which files define them?") makes the agent call `read_file` on file
+after file until the conversation passes gpt-4o-mini's 128k-token limit and the API call
+fails. Nothing bounds the agent's context. Tracked as issue #15; the harness counts a context
+overflow as a wrong answer.
+
+Not yet known: whether naive RAG fails the cross-file questions. If it doesn't, they are still
+too easy and the set needs questions that span more files.
