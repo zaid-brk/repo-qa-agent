@@ -23,6 +23,8 @@ how accurate it actually is.
 
 [Watch the demo on Loom](https://www.loom.com/share/12029311091b493395c86c3842e175d7)
 
+(It's worth noting that the codebase has been edit and improved since this demo was filmed - new demo will be out soon)
+
 ## How it works
 
 The LLM has never seen your repo, so the pipeline gives it the right pieces at the right time:
