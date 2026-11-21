@@ -10,23 +10,39 @@ from qdrant_client.models import Filter, FieldCondition, MatchValue
 from store import search, client, collection_for, get_active_repo
 
 
-# Cosine search always returns top_k, however poor the match. Searching
-# itsdangerous for "ORM" still returned a pre-commit config at 0.21 and a
-# signer.py chunk containing the string "django-concat" at 0.23 — enough for the
-# agent to occasionally report an ORM that isn't there. Measured on that repo,
-# irrelevant matches top out near 0.28 while genuine ones start around 0.37, so
-# a floor between them turns "nothing here" into an empty result instead of
-# plausible-looking noise.
-MIN_SCORE = 0.32
+# Cosine search always returns top_k, however poor the match, so the agent used
+# to get five plausible-looking chunks even for a concept the repo never mentions
+# and would sometimes believe them. A score floor looked like the fix but isn't:
+# on itsdangerous "ORM" scores 0.21 and "SQLAlchemy" 0.26 (both absent) while
+# "class " scores 0.18 and "Serializer class" 0.31 (both present). Absolute score
+# tracks how the query is phrased, not whether the answer exists, so any cutoff
+# that hides the absent concepts also hides real code.
+#
+# Reporting the score instead lets the agent tell strong evidence from weak and
+# re-query rather than concluding from noise — which was the actual failure in
+# both directions.
+WEAK_MATCH = 0.30
 
 
 @tool
 def search_code(query: str) -> str:
     """Search the codebase for snippets relevant to a natural-language query."""
-    hits = [h for h in search(query, top_k=5) if h["score"] >= MIN_SCORE]
+    hits = search(query, top_k=5)
     if not hits:
-        return f"No code in this repo matches {query!r}."
-    return "\n\n".join(f"--- {h['file']} ---\n{h['text']}" for h in hits)
+        return "No chunks are stored for this repo."
+    note = (
+        f"Best cosine similarity {hits[0]['score']:.2f} (0-1). "
+        + (
+            "That is a weak match: either this repo has nothing on the topic, or the "
+            "query is phrased badly. Try re-wording it before concluding anything."
+            if hits[0]["score"] < WEAK_MATCH
+            else "That is a solid match."
+        )
+    )
+    body = "\n\n".join(
+        f"--- {h['file']} (similarity {h['score']:.2f}) ---\n{h['text']}" for h in hits
+    )
+    return f"{note}\n\n{body}"
 
 
 @tool
