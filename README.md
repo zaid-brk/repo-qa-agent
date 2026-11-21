@@ -52,6 +52,8 @@ question ───────────────────────�
    what handles questions whose answers span several files. For exact names ("where is
    `Session` defined?") it has `find_symbol`, which parses the indexed Python files with
    `ast` and returns each definition's file and line, since embeddings are bad at syntax.
+   Answers cite `path:line`, and the API links each citation to those lines on GitHub at
+   the exact commit that was indexed.
 
 Qdrant runs in local file mode (`qdrant_storage/`), so there's no Docker or server to set
 up while developing. For deployment it swaps to Qdrant Cloud with one line. Each repo gets

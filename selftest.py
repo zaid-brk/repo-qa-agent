@@ -148,6 +148,66 @@ def test_runaway_agent_stays_in_context():
     print(f"✓ runaway agent stopped after {len(trace)} reads, peak context {max(seen):,} chars")
 
 
+def test_search_code_shows_line_ranges():
+    """Each hit says which lines it covers, so answers can cite path:line."""
+    text = "".join(f"line {i}\n" for i in range(1, 400))     # each line names itself
+    tools = _fake_store({"src/a.py": text})
+    hits = [{"score": 0.9, **p.payload} for p in tools.client.scroll("chunks_fake", limit=100)[0]]
+    hits.sort(key=lambda h: h["chunk_index"])
+    orig = tools.search
+    tools.search = lambda query, top_k=5, collection=None: hits[1:3]
+    try:
+        out = tools.search_code.invoke({"query": "x"})
+    finally:
+        tools.search = orig
+    for h in hits[1:3]:
+        first, last = h["text"].split()[1], h["text"].rstrip().split()[-1]
+        assert f"--- src/a.py:{first}-{last} (similarity 0.90) ---" in out, (first, last, out[:300])
+    print("✓ search_code hits show their line ranges")
+
+
+def test_ask_links_citations_to_github():
+    """Cited indexed paths become links to that exact commit and line; code,
+    unknown paths and repos with no recorded commit are left alone."""
+    from langchain_core.language_models.chat_models import BaseChatModel
+    from langchain_core.messages import AIMessage
+    from langchain_core.outputs import ChatGeneration, ChatResult
+    from fastapi.testclient import TestClient
+    import agent, main, store
+
+    said = ("See `src/a.py:12` and src/a.py:3-5, also `src/a.py`, docs/missing.py:4 and xsrc/a.py.\n"
+            "```\nsrc/a.py:9\n```\n`src/a.py:12 Signer`")
+
+    class Cites(BaseChatModel):
+        @property
+        def _llm_type(self):
+            return "cites"
+
+        def bind_tools(self, tools, **kwargs):
+            return self
+
+        def _generate(self, messages, stop=None, run_manager=None, **kwargs):
+            return ChatResult(generations=[ChatGeneration(message=AIMessage(content=said))])
+
+    tools = _fake_store({"src/a.py": "x = 1\n"})
+    orig = store.client, agent.get_llm
+    store.client = tools.client
+    agent.get_llm, agent._agent = Cites, None
+    try:
+        api = TestClient(main.app)
+        ask = lambda: api.post("/ask", json={"question": "q", "repo": "fake"}).json()["answer"]
+        assert ask() == said        # indexed before commits were recorded: no links
+        store.set_repo_source("fake", "https://github.com/o/r", "abc123")
+        b = "https://github.com/o/r/blob/abc123/src/a.py"
+        assert ask() == (f"See [`src/a.py:12`]({b}#L12) and [src/a.py:3-5]({b}#L3-L5), also "
+                         f"[`src/a.py`]({b}), docs/missing.py:4 and xsrc/a.py.\n"
+                         "```\nsrc/a.py:9\n```\n`src/a.py:12 Signer`"), ask()
+    finally:
+        store.client, agent.get_llm = orig
+        agent._agent = None
+    print("✓ /ask links cited files to the indexed commit and line")
+
+
 def test_find_symbol():
     """Exact definitions with line numbers, which semantic search is bad at
     ("class " scored below unrelated concepts on itsdangerous, issue #9)."""
@@ -305,6 +365,8 @@ if __name__ == "__main__":
     test_failed_clone_keeps_old_index()
     test_read_file_pages_big_files()
     test_runaway_agent_stays_in_context()
+    test_search_code_shows_line_ranges()
+    test_ask_links_citations_to_github()
     test_find_symbol()
     test_index_rejects_non_github_urls()
     test_missing_repo_is_a_clear_400()

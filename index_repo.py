@@ -6,10 +6,11 @@ import re
 import sys
 import tempfile
 
-from ingest import clone_repo, collect_files
+from ingest import clone_repo, collect_files, head_sha
 from chunk import chunk_file
 from store import (
     store_chunks, collection_for, repo_name_from_url, set_active_repo, reset_collection,
+    set_repo_source,
 )
 
 
@@ -25,6 +26,7 @@ def index_repo(github_url: str):
     collection = collection_for(repo)
     with tempfile.TemporaryDirectory() as dest:   # clone is deleted afterwards
         clone_repo(github_url, dest)
+        sha = head_sha(dest)
         # Only after the clone succeeds: a bad URL must not wipe the working index.
         reset_collection(collection)   # re-indexing replaces, never duplicates
         total = 0
@@ -36,6 +38,7 @@ def index_repo(github_url: str):
                 batch = []
         if batch:
             total += store_chunks(batch, collection)
+    set_repo_source(repo, github_url, sha)
     set_active_repo(repo)              # questions now go to this repo
     print(f"Indexed {total} chunks from {github_url} into '{collection}'")
     return total

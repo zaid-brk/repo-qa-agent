@@ -304,6 +304,19 @@ button:disabled {
   padding: 1px 5px;
 }
 
+/* Citation links to the indexed commit on GitHub. */
+.answer a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  text-underline-offset: 2px;
+  overflow-wrap: anywhere;
+}
+
+.answer a:hover {
+  text-decoration-color: currentColor;
+}
+
 /* Fenced blocks: one border, scrolling on its own so the page never does. */
 .answer pre {
   background: var(--surface);

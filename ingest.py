@@ -32,6 +32,12 @@ def clone_repo(github_url: str, dest: str) -> str:
     return dest
 
 
+def head_sha(repo_path: str) -> str:
+    """The commit that was cloned, so citations can link to exactly these lines."""
+    return subprocess.run(["git", "-C", repo_path, "rev-parse", "HEAD"],
+                          check=True, capture_output=True, text=True).stdout.strip()
+
+
 def collect_files(repo_path: str):
     """Yield (relative_path, file_contents) for every code file."""
     repo_path = Path(repo_path)

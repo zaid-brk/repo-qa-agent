@@ -51,13 +51,37 @@ def collection_for(repo_name: str) -> str:
     return "chunks_" + repo_name.replace("-", "_")
 
 
-def set_active_repo(repo_name: str):
-    ACTIVE_FILE.write_text(repo_name)
-    # Single point, dummy 1-d vector — this collection is a key/value slot, not
-    # something we ever search.
+def _ensure_meta():
+    # Dummy 1-d vectors: this collection is a key/value store, never searched.
     if META not in [c.name for c in client.get_collections().collections]:
         client.create_collection(META, vectors_config=VectorParams(size=1, distance=Distance.COSINE))
+
+
+def set_active_repo(repo_name: str):
+    ACTIVE_FILE.write_text(repo_name)
+    _ensure_meta()
     client.upsert(META, points=[PointStruct(id=0, vector=[0.0], payload={"repo": repo_name})])
+
+
+def _source_id(repo_name: str) -> str:
+    return str(uuid.uuid5(uuid.NAMESPACE_URL, "source:" + repo_name))
+
+
+def set_repo_source(repo_name: str, github_url: str, sha: str):
+    """Remember which GitHub repo and commit an index was built from, so
+    citations can link to the exact lines that were indexed."""
+    _ensure_meta()
+    url = github_url.rstrip("/").removesuffix(".git")
+    client.upsert(META, points=[PointStruct(id=_source_id(repo_name), vector=[0.0],
+                                            payload={"url": url, "sha": sha})])
+
+
+def get_repo_source(repo_name: str) -> tuple[str, str] | None:
+    """(github_url, sha), or None for repos indexed before this was recorded."""
+    if META not in [c.name for c in client.get_collections().collections]:
+        return None
+    points = client.retrieve(META, ids=[_source_id(repo_name)], with_payload=True)
+    return (points[0].payload["url"], points[0].payload["sha"]) if points else None
 
 
 def indexed_repos() -> list[str]:
