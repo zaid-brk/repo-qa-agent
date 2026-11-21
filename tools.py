@@ -7,6 +7,7 @@ when chunks aren't enough. That's multi-hop retrieval.
 from langchain_core.tools import tool
 from qdrant_client.models import Filter, FieldCondition, MatchValue
 
+from chunk import join_chunks
 from store import search, client, collection_for, get_active_repo
 
 
@@ -70,6 +71,6 @@ def read_file(file_path: str) -> str:
         # Filter model, not a raw dict — local file-mode Qdrant doesn't parse dicts.
         scroll_filter=Filter(must=[FieldCondition(key="file", match=MatchValue(value=file_path))]),
     )
-    # Reassemble the file from its chunks, in order.
+    # Reassemble the file from its chunks, in order, without the overlap between them.
     chunks = sorted(points, key=lambda p: p.payload.get("chunk_index", 0))
-    return "\n".join(c.payload["text"] for c in chunks) or f"File not found: {file_path}"
+    return join_chunks([(c.payload.get("start"), c.payload["text"]) for c in chunks]) or f"File not found: {file_path}"

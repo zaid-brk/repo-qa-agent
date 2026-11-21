@@ -16,6 +16,9 @@ splitter = RecursiveCharacterTextSplitter(
     # falling back to blank lines, then lines, then words. Real improvement over the
     # default separators for code.
     separators=["\nclass ", "\ndef ", "\n\n", "\n", " ", ""],
+    # Keep whitespace so every chunk is a verbatim slice of the file. That's what
+    # lets join_chunks rebuild the file exactly from stored chunks.
+    strip_whitespace=False,
 )
 
 
@@ -25,11 +28,32 @@ def chunk_file(rel_path: str, text: str):
     The metadata (which file, which position) is what lets answers cite sources
     and lets the agent (Phase 5) know which file to open next.
     """
-    chunks = splitter.split_text(text)
-    return [
-        {"text": chunk, "metadata": {"file": rel_path, "chunk_index": i}}
-        for i, chunk in enumerate(chunks)
-    ]
+    out, end = [], 0
+    for i, chunk in enumerate(splitter.split_text(text)):
+        # Neighbours overlap by up to chunk_overlap chars, so the next chunk starts
+        # within that window. The splitter occasionally drops a blank line between
+        # chunks; starting the slice at the previous end absorbs it.
+        found = text.find(chunk, max(0, end - splitter._chunk_overlap))
+        start = end if found == -1 else min(found, end)
+        stop = max(end, start + len(chunk))
+        out.append({"text": text[start:stop],
+                    "metadata": {"file": rel_path, "chunk_index": i, "start": start}})
+        end = stop
+    if out and end < len(text):   # same for trailing blank lines it drops at the end
+        out[-1]["text"] += text[end:]
+    return out
+
+
+def join_chunks(chunks: list[tuple[int | None, str]]) -> str:
+    """Rebuild a file from (start, text) pairs in chunk order, dropping the overlap.
+
+    Chunks indexed before start offsets existed have start=None and are just
+    concatenated, which repeats the overlap. Re-index to fix those.
+    """
+    out = ""
+    for start, text in chunks:
+        out += text if start is None else text[len(out) - start:]
+    return out
 
 
 if __name__ == "__main__":
