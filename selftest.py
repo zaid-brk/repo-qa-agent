@@ -204,6 +204,54 @@ def test_missing_repo_is_a_clear_400():
     print("✓ missing repo gives a 400 with a readable message")
 
 
+def test_ask_uses_the_callers_repo():
+    """/ask must answer from the repo the caller names, not whichever repo was
+    indexed last by anyone (issue #12)."""
+    from langchain_core.language_models.chat_models import BaseChatModel
+    from langchain_core.messages import AIMessage, ToolMessage
+    from langchain_core.outputs import ChatGeneration, ChatResult
+    from fastapi.testclient import TestClient
+    import agent, main, store, tools
+
+    class ListsThenAnswers(BaseChatModel):
+        @property
+        def _llm_type(self):
+            return "lists-then-answers"
+
+        def bind_tools(self, tools, **kwargs):
+            return self
+
+        def _generate(self, messages, stop=None, run_manager=None, **kwargs):
+            last = messages[-1]
+            if isinstance(last, ToolMessage):   # answer with what list_files saw
+                msg = AIMessage(content=last.content)
+            else:
+                msg = AIMessage(content="", tool_calls=[{"name": "list_files", "args": {}, "id": "c1"}])
+            return ChatResult(generations=[ChatGeneration(message=msg)])
+
+    c = QdrantClient(":memory:")
+    for repo in ["alpha", "beta"]:
+        c.create_collection(f"chunks_{repo}", vectors_config=VectorParams(size=1, distance=Distance.COSINE))
+        c.upsert(f"chunks_{repo}", [PointStruct(id=str(uuid.uuid4()), vector=[1.0],
+                 payload={"text": "x = 1", "file": f"{repo}.py", "chunk_index": 0, "start": 0})])
+    orig = store.client, tools.client, tools.get_active_repo, agent.get_llm
+    store.client = tools.client = c
+    tools.get_active_repo = lambda: "beta"       # someone else indexed beta last
+    agent.get_llm, agent._agent = ListsThenAnswers, None
+    try:
+        api = TestClient(main.app)
+        r = api.post("/ask", json={"question": "what files?", "repo": "alpha"})
+        assert r.status_code == 200 and r.json()["answer"] == "alpha.py", r.text
+        r = api.post("/ask", json={"question": "what files?"})   # no repo: old behaviour
+        assert r.json()["answer"] == "beta.py", r.text
+        r = api.post("/ask", json={"question": "what files?", "repo": "nope"})
+        assert r.status_code == 400, r.text
+    finally:
+        store.client, tools.client, tools.get_active_repo, agent.get_llm = orig
+        agent._agent = None
+    print("✓ /ask answers from the caller's repo, not the global one")
+
+
 def test_collection_naming():
     assert repo_name_from_url("https://github.com/psf/requests") == "requests"
     assert repo_name_from_url("https://github.com/pallets/click.git") == "click"
@@ -240,6 +288,7 @@ if __name__ == "__main__":
     test_runaway_agent_stays_in_context()
     test_index_rejects_non_github_urls()
     test_missing_repo_is_a_clear_400()
+    test_ask_uses_the_callers_repo()
     test_collection_naming()
     test_qdrant_roundtrip()
     test_imports_without_key()

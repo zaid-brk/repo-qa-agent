@@ -4,6 +4,7 @@ Naive RAG retrieves 5 chunks and stops. These tools let the agent keep digging:
 search again with a better query, list what files exist, or read a whole file
 when chunks aren't enough. That's multi-hop retrieval.
 """
+from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
 from qdrant_client.models import Filter, FieldCondition, MatchValue
 
@@ -31,10 +32,18 @@ WEAK_MATCH = 0.30
 MAX_READ_CHARS = 20_000
 
 
+def _collection(config: RunnableConfig) -> str:
+    """The repo this call is about. The API passes it per request (issue #12), so
+    one visitor indexing a repo doesn't change what everyone else is asking about;
+    the CLI and eval leave it out and get the active repo."""
+    repo = (config or {}).get("configurable", {}).get("repo") or get_active_repo()
+    return collection_for(repo)
+
+
 @tool
-def search_code(query: str) -> str:
+def search_code(query: str, config: RunnableConfig) -> str:
     """Search the codebase for snippets relevant to a natural-language query."""
-    hits = search(query, top_k=5)
+    hits = search(query, top_k=5, collection=_collection(config))
     if not hits:
         return "No chunks are stored for this repo."
     note = (
@@ -53,10 +62,10 @@ def search_code(query: str) -> str:
 
 
 @tool
-def list_files() -> str:
+def list_files(config: RunnableConfig) -> str:
     """List all files that have been indexed from the repo."""
     # Scroll through stored points and collect unique file names.
-    collection = collection_for(get_active_repo())
+    collection = _collection(config)
     files = set()
     offset = None
     while True:
@@ -69,10 +78,10 @@ def list_files() -> str:
 
 
 @tool
-def read_file(file_path: str, start: int = 0) -> str:
+def read_file(file_path: str, config: RunnableConfig, start: int = 0) -> str:
     """Read one indexed file by its path. Long files come back in pages: pass the
     start offset given at the end of a page to read the next one."""
-    collection = collection_for(get_active_repo())
+    collection = _collection(config)
     points, _ = client.scroll(
         collection, limit=1000, with_payload=True,
         # Filter model, not a raw dict — local file-mode Qdrant doesn't parse dicts.

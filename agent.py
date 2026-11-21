@@ -38,7 +38,7 @@ def get_agent():
     return _agent
 
 
-def ask_traced(question: str) -> tuple[str, list[dict]]:
+def ask_traced(question: str, repo: str | None = None) -> tuple[str, list[dict]]:
     """Answer, plus the tool calls the agent made getting there.
 
     The multi-hop retrieval is the whole point of the agent, so surface it
@@ -50,7 +50,8 @@ def ask_traced(question: str) -> tuple[str, list[dict]]:
     try:
         for state in get_agent().stream(
             {"messages": [("user", question)]},
-            config={"recursion_limit": MAX_STEPS}, stream_mode="values",
+            config={"recursion_limit": MAX_STEPS, "configurable": {"repo": repo}},
+            stream_mode="values",
         ):
             pass
         answer = state["messages"][-1].content
