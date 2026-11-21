@@ -10,10 +10,22 @@ from qdrant_client.models import Filter, FieldCondition, MatchValue
 from store import search, client, collection_for, get_active_repo
 
 
+# Cosine search always returns top_k, however poor the match. Searching
+# itsdangerous for "ORM" still returned a pre-commit config at 0.21 and a
+# signer.py chunk containing the string "django-concat" at 0.23 — enough for the
+# agent to occasionally report an ORM that isn't there. Measured on that repo,
+# irrelevant matches top out near 0.28 while genuine ones start around 0.37, so
+# a floor between them turns "nothing here" into an empty result instead of
+# plausible-looking noise.
+MIN_SCORE = 0.32
+
+
 @tool
 def search_code(query: str) -> str:
     """Search the codebase for snippets relevant to a natural-language query."""
-    hits = search(query, top_k=5)
+    hits = [h for h in search(query, top_k=5) if h["score"] >= MIN_SCORE]
+    if not hits:
+        return f"No code in this repo matches {query!r}."
     return "\n\n".join(f"--- {h['file']} ---\n{h['text']}" for h in hits)
 
 

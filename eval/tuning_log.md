@@ -15,10 +15,31 @@ Levers, in the order worth trying:
 |-----|----------------------|----------|-------|
 | 0 | naive RAG baseline (`--naive`) | 100% (50/50) | retrieve-once, no tools |
 | 1 | agent baseline (multi-hop, defaults: 1000/150, top_k=5) | 100% (50/50) | |
+| 2 | `MIN_SCORE = 0.32` floor in `search_code` (tools.py) | 100% (50/50) | fixes a hallucination the 50 questions never caught |
 
-Both runs hit 100% on the first pass, so there is nothing to tune — no ✗ rows to form a
+Runs 0 and 1 hit 100% on the first pass, so there was nothing to tune — no ✗ rows to form a
 hypothesis from. The benchmark is saturated: every question is answerable from a single
 retrieval, which is why naive RAG matches the agent. The honest conclusion is that this
 question set doesn't separate the two approaches; making it do so would mean writing harder,
 cross-file questions where retrieve-once starts to miss. Recorded here rather than inventing
 a tuning gap that didn't happen.
+
+## Run 2 — a failure the benchmark missed
+
+Found by hand, not by the eval: asking a freshly indexed `itsdangerous` "what ORM ships
+inside this project?" sometimes answered "SQLAlchemy". There is no ORM in that library.
+
+Cause: `search_code` returned `top_k` chunks unconditionally, and cosine search always
+returns *something*. Measured on `itsdangerous`, absent concepts topped out around 0.28
+("ORM" → `.pre-commit-config.yaml` at 0.21; "Django" → `signer.py` at 0.23, which genuinely
+contains the string `django-concat`), while real matches started around 0.37. The agent was
+being handed plausible-looking noise and occasionally believed it.
+
+Fix: drop hits below 0.32 and return "no code matches" instead. Absent concepts now return
+nothing, so the agent searches again rather than reasoning over junk — hop counts on that
+question went from 3 to 4–6.
+
+Accuracy stayed 50/50, which is the point worth recording: **the eval did not catch this and
+did not detect the fix.** Questions 49 and 50 are the same shape of trap and passed both
+before and after. A benchmark scoring 100% is not evidence there are no bugs; it is evidence
+the questions are too easy. Another argument for harder cross-file questions.
