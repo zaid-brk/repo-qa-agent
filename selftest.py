@@ -73,6 +73,9 @@ def test_failed_clone_keeps_old_index():
     print("✓ failed clone leaves the existing index alone")
 
 
+KEY = {"X-OpenAI-Key": "sk-caller"}   # a caller's key; the API refuses requests without one
+
+
 def _fake_store(files: dict[str, str]):
     """Point tools.py at an in-memory Qdrant holding these files, chunked as indexing would."""
     import tools
@@ -138,11 +141,11 @@ def test_runaway_agent_stays_in_context():
             return ChatResult(generations=[ChatGeneration(message=AIMessage(content="", tool_calls=[call]))])
 
     _fake_store({"huge.py": "x = 1  # padding\n" * 30_000})   # ~510k chars
-    agent.get_llm, agent._agent = AlwaysReads, None
+    orig, agent.get_llm = agent.get_llm, AlwaysReads
     try:
         answer, trace = agent.ask_traced("read everything")
     finally:
-        agent._agent = None
+        agent.get_llm = orig
     assert answer == agent.OUT_OF_STEPS, answer
     assert max(seen) < 400_000, max(seen)
     print(f"✓ runaway agent stopped after {len(trace)} reads, peak context {max(seen):,} chars")
@@ -192,9 +195,9 @@ def test_ask_links_citations_to_github():
     tools = _fake_store({"src/a.py": "x = 1\n"})
     orig = store.client, agent.get_llm
     store.client = tools.client
-    agent.get_llm, agent._agent = Cites, None
+    agent.get_llm = Cites
     try:
-        api = TestClient(main.app)
+        api = TestClient(main.app, headers=KEY)
         ask = lambda: api.post("/ask", json={"question": "q", "repo": "fake"}).json()["answer"]
         assert ask() == said        # indexed before commits were recorded: no links
         store.set_repo_source("fake", "https://github.com/o/r", "abc123")
@@ -204,7 +207,6 @@ def test_ask_links_citations_to_github():
                          "```\nsrc/a.py:9\n```\n`src/a.py:12 Signer`"), ask()
     finally:
         store.client, agent.get_llm = orig
-        agent._agent = None
     print("✓ /ask links cited files to the indexed commit and line")
 
 
@@ -243,7 +245,7 @@ def test_index_rejects_non_github_urls():
     orig = ir.clone_repo
     ir.clone_repo = fake_clone
     try:
-        client = TestClient(main.app, raise_server_exceptions=False)
+        client = TestClient(main.app, headers=KEY, raise_server_exceptions=False)
         bad = [
             "file:///etc", "ssh://git@github.com/psf/requests", "git@github.com:psf/requests.git",
             "http://github.com/psf/requests", "https://gitlab.com/psf/requests",
@@ -275,7 +277,7 @@ def test_missing_repo_is_a_clear_400():
     orig = ingest.subprocess.run
     ingest.subprocess.run = fail
     try:
-        r = TestClient(main.app, raise_server_exceptions=False).post(
+        r = TestClient(main.app, headers=KEY, raise_server_exceptions=False).post(
             "/index", json={"github_url": "https://github.com/x/does-not-exist"})
     finally:
         ingest.subprocess.run = orig
@@ -316,9 +318,9 @@ def test_ask_uses_the_callers_repo():
     orig = store.client, tools.client, tools.get_active_repo, agent.get_llm
     store.client = tools.client = c
     tools.get_active_repo = lambda: "beta"       # someone else indexed beta last
-    agent.get_llm, agent._agent = ListsThenAnswers, None
+    agent.get_llm = ListsThenAnswers
     try:
-        api = TestClient(main.app)
+        api = TestClient(main.app, headers=KEY)
         r = api.post("/ask", json={"question": "what files?", "repo": "alpha"})
         assert r.status_code == 200 and r.json()["answer"] == "alpha.py", r.text
         r = api.post("/ask", json={"question": "what files?"})   # no repo: old behaviour
@@ -327,7 +329,6 @@ def test_ask_uses_the_callers_repo():
         assert r.status_code == 400, r.text
     finally:
         store.client, tools.client, tools.get_active_repo, agent.get_llm = orig
-        agent._agent = None
     print("✓ /ask answers from the caller's repo, not the global one")
 
 
@@ -352,6 +353,60 @@ def test_qdrant_roundtrip():
     print("✓ qdrant store + cosine search roundtrip")
 
 
+def test_api_spends_only_the_callers_key():
+    """BYOK: no key is a 401, the server's own key is gone, and the caller's key
+    reaches both the model and the search tool (which runs in another thread)."""
+    import os
+    from langchain_core.language_models.chat_models import BaseChatModel
+    from langchain_core.messages import AIMessage, ToolMessage
+    from langchain_core.outputs import ChatGeneration, ChatResult
+    from fastapi.testclient import TestClient
+    import agent, llm, main, store
+
+    seen = []
+
+    class SearchesThenAnswers(BaseChatModel):
+        @property
+        def _llm_type(self):
+            return "searches-then-answers"
+
+        def bind_tools(self, tools, **kwargs):
+            return self
+
+        def _generate(self, messages, stop=None, run_manager=None, **kwargs):
+            seen.append(("model", llm.user_key.get()))
+            if isinstance(messages[-1], ToolMessage):
+                msg = AIMessage(content="done")
+            else:
+                msg = AIMessage(content="", tool_calls=[{"name": "search_code", "args": {"query": "x"}, "id": "c1"}])
+            return ChatResult(generations=[ChatGeneration(message=msg)])
+
+    def fake_search(query, top_k=5, collection=None):
+        seen.append(("search", llm.user_key.get()))
+        return []
+
+    tools = _fake_store({"src/a.py": "x = 1\n"})
+    orig = store.client, agent.get_llm, tools.search
+    store.client, agent.get_llm, tools.search = tools.client, SearchesThenAnswers, fake_search
+    try:
+        anon = TestClient(main.app)
+        for path, body in [("/ask", {"question": "q", "repo": "fake"}), ("/index", {"github_url": "https://github.com/o/r"})]:
+            r = anon.post(path, json=body)
+            assert r.status_code == 401, (path, r.status_code, r.text)
+            r = anon.post(path, json=body, headers={"X-OpenAI-Key": "  "})
+            assert r.status_code == 401, (path, "blank", r.status_code)
+        assert seen == [], seen                       # refused before any model or search ran
+        assert "OPENAI_API_KEY" not in os.environ     # nothing to fall back on
+
+        r = TestClient(main.app, headers=KEY).post("/ask", json={"question": "q", "repo": "fake"})
+        assert r.status_code == 200 and r.json()["answer"] == "done", r.text
+        assert seen == [("model", "sk-caller"), ("search", "sk-caller"), ("model", "sk-caller")], seen
+        assert llm.user_key.get() is None             # didn't leak out of the request
+    finally:
+        store.client, agent.get_llm, tools.search = orig
+    print("✓ /index and /ask need the caller's key and spend only that key")
+
+
 def test_imports_without_key():
     """Every module must import with no OPENAI_API_KEY — models are lazy."""
     import answer, agent, tools, main  # noqa: F401
@@ -373,5 +428,6 @@ if __name__ == "__main__":
     test_ask_uses_the_callers_repo()
     test_collection_naming()
     test_qdrant_roundtrip()
+    test_api_spends_only_the_callers_key()
     test_imports_without_key()
     print("\nAll offline checks passed.")

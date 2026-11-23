@@ -154,6 +154,10 @@ button:disabled {
   color: var(--mute);
   margin: 10px 0 0;
 }
+.note a {
+  color: inherit;
+  text-decoration: underline;
+}
 
 /* ---- result: trace rail + answer ---- */
 

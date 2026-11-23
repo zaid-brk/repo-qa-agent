@@ -22,8 +22,6 @@ line numbers when the tools give them, like src/pkg/app.py:120 or
 src/pkg/app.py:120-140.
 If the answer truly isn't in the code, say so."""
 
-_agent = None
-
 # langgraph's default step limit is 10,007, so nothing stopped the loop except the
 # model's 128k context overflowing (issue #15). 25 steps is about 12 tool calls,
 # plenty for the 5-10 hop questions, and with read_file capped at 20k chars it
@@ -35,11 +33,8 @@ OUT_OF_STEPS = ("I ran out of steps before finding a complete answer. "
 
 
 def get_agent():
-    """Built once, reused across questions (and lazily, so import needs no API key)."""
-    global _agent
-    if _agent is None:
-        _agent = create_react_agent(get_llm(), [search_code, find_symbol, list_files, read_file], prompt=SYSTEM)
-    return _agent
+    """Built per question (cheap), so each request uses its caller's OpenAI key."""
+    return create_react_agent(get_llm(), [search_code, find_symbol, list_files, read_file], prompt=SYSTEM)
 
 
 def ask_traced(question: str, repo: str | None = None) -> tuple[str, list[dict]]:

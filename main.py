@@ -5,10 +5,16 @@ Run: uvicorn main:app --reload   then open http://localhost:8000/docs
 CORS is open (*) because the Next.js dev server runs on a different port and
 browsers block cross-origin calls unless the API allows them. Fine for a demo;
 lock allow_origins down to the real frontend URL in production.
+
+Bring your own key: /index and /ask spend the caller's OpenAI key, sent in the
+X-OpenAI-Key header. It lives for that one request and is never stored or logged.
 """
+import os
 import re
 
-from fastapi import FastAPI, HTTPException
+import openai
+from fastapi import FastAPI, Header, HTTPException
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -16,6 +22,12 @@ from index_repo import index_repo
 from agent import ask_traced
 from store import collection_for, get_active_repo, get_repo_source, indexed_repos, repo_name_from_url
 from tools import _all_points
+from llm import user_key
+
+# The API only ever spends callers' keys. Dropping the server's own key (which
+# load_dotenv may have read from .env) means a missed code path fails loudly
+# instead of quietly billing the owner.
+os.environ.pop("OPENAI_API_KEY", None)
 
 app = FastAPI(title="Repo Q&A Agent")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
@@ -30,8 +42,23 @@ class AskReq(BaseModel):
     repo: str | None = None   # the repo this caller indexed; None = the active repo
 
 
+def use_key(key: str | None):
+    """Spend the caller's key for the rest of this request, or refuse."""
+    if not key or not key.strip():
+        raise HTTPException(401, "Add your OpenAI API key to use this demo.")
+    user_key.set(key.strip())
+
+
+@app.exception_handler(openai.APIStatusError)
+def openai_error(request, e: openai.APIStatusError):
+    """A bad, out-of-quota or restricted key is the caller's to fix: pass
+    OpenAI's status and reason through instead of a bare 500."""
+    return JSONResponse({"detail": f"OpenAI said: {e.message}"}, status_code=e.status_code)
+
+
 @app.post("/index")
-def index(req: IndexReq):
+def index(req: IndexReq, x_openai_key: str | None = Header(None)):
+    use_key(x_openai_key)
     try:
         chunks = index_repo(req.github_url)
     except ValueError as e:
@@ -40,7 +67,8 @@ def index(req: IndexReq):
 
 
 @app.post("/ask")
-def ask_endpoint(req: AskReq):
+def ask_endpoint(req: AskReq, x_openai_key: str | None = Header(None)):
+    use_key(x_openai_key)
     if req.repo is not None and req.repo not in indexed_repos():
         raise HTTPException(400, f"Repo '{req.repo}' is not indexed. Index it first.")
     answer, trace = ask_traced(req.question, req.repo)
