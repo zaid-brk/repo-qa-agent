@@ -17,7 +17,7 @@ retrieval-augmented generation (RAG) upgraded to an agent that can search, list 
 read whole files across multiple hops, plus a 67-question evaluation harness that measures
 how accurate it actually is.
 
-**Live API:** https://repo-qa-agent.onrender.com/docs (FastAPI backend on Render, Qdrant Cloud as the vector store). Render's free tier sleeps when idle, so the first request can take ~50s to wake up.
+**Live API:** https://repo-qa-agent.onrender.com/docs (FastAPI backend on Render, Qdrant Cloud as the vector store). Render's free tier sleeps when idle, so the first request can take ~50s to wake up. It's bring-your-own-key: `/index` and `/ask` need your OpenAI key in an `X-OpenAI-Key` header (the web app has a field for it), and the server never uses a key of its own.
 
 ## Demo
 

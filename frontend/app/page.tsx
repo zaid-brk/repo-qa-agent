@@ -23,11 +23,15 @@ export default function Home() {
   // The repo this visitor indexed, sent with every question so another
   // visitor indexing a different repo doesn't change our answers.
   const [repo, setRepo] = useState<string | undefined>();
+  // Bring your own key: the API spends the visitor's OpenAI key, never the
+  // owner's. Kept in this browser only so it survives a reload.
+  const [apiKey, setApiKey] = useState("");
 
   // Remember the repo across reloads. Storage can be blocked (private mode),
   // in which case we just fall back to the server's active repo.
   useEffect(() => {
     try {
+      setApiKey(localStorage.getItem("openai_key") ?? "");
       const saved = localStorage.getItem("repo");
       if (saved) {
         setRepo(saved);
@@ -40,15 +44,25 @@ export default function Home() {
   const [busy, setBusy] = useState(false);
   const [indexing, setIndexing] = useState(false);
 
+  function saveKey(k: string) {
+    setApiKey(k);
+    try {
+      if (k) localStorage.setItem("openai_key", k);
+      else localStorage.removeItem("openai_key");
+    } catch {}
+  }
+
+  const headers = { "Content-Type": "application/json", "X-OpenAI-Key": apiKey.trim() };
+
   async function indexRepo() {
-    if (!repoUrl || indexing) return;
+    if (!repoUrl || indexing || !apiKey.trim()) return;
     setIndexing(true);
     setResult(null);
     setIndexNote("Cloning, splitting into chunks, embedding…");
     try {
       const res = await fetch(`${API}/index`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({ github_url: repoUrl }),
       });
       const data = await res.json().catch(() => ({}));
@@ -66,14 +80,14 @@ export default function Home() {
   }
 
   async function ask(question: string) {
-    if (!question || busy) return;
+    if (!question || busy || !apiKey.trim()) return;
     setQ("");
     setBusy(true);
     setResult(null);
     try {
       const res = await fetch(`${API}/ask`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({ question, repo }),
       });
       const data = await res.json().catch(() => ({}));
@@ -96,11 +110,35 @@ export default function Home() {
         </h1>
       </header>
 
-      {/* Two steps, numbered because the order is real: nothing can be asked
-          until a repo has been indexed. */}
+      {/* Numbered because the order is real: no key, no indexing; nothing can
+          be asked until a repo has been indexed. */}
       <section className="step">
         <h2 className="step-head">
-          <span className="step-n">1</span> Point it at a repo
+          <span className="step-n">1</span> Add your OpenAI key
+        </h2>
+        <div className="bar">
+          <input
+            type="password"
+            aria-label="OpenAI API key"
+            placeholder="sk-..."
+            autoComplete="off"
+            spellCheck={false}
+            value={apiKey}
+            onChange={(e) => saveKey(e.target.value)}
+          />
+        </div>
+        <p className="note">
+          <span>
+            Each question costs about a cent on your key. It goes to this demo&apos;s API only for your
+            requests and is never stored there. It stays saved in this browser until you clear the
+            field. <a href="https://platform.openai.com/api-keys" target="_blank" rel="noreferrer">Get a key</a>
+          </span>
+        </p>
+      </section>
+
+      <section className="step">
+        <h2 className="step-head">
+          <span className="step-n">2</span> Point it at a repo
         </h2>
         <div className="bar">
           <input
@@ -110,7 +148,7 @@ export default function Home() {
             onChange={(e) => setRepoUrl(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && indexRepo()}
           />
-          <button onClick={indexRepo} disabled={!repoUrl || indexing}>
+          <button onClick={indexRepo} disabled={!repoUrl || indexing || !apiKey.trim()}>
             {indexing ? "Indexing" : "Index"}
           </button>
         </div>
@@ -124,7 +162,7 @@ export default function Home() {
 
       <section className="step">
         <h2 className="step-head">
-          <span className="step-n">2</span> Ask about it
+          <span className="step-n">3</span> Ask about it
         </h2>
         <div className="bar">
           <input
@@ -134,7 +172,7 @@ export default function Home() {
             onChange={(e) => setQ(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && ask(q)}
           />
-          <button onClick={() => ask(q)} disabled={busy || !q}>
+          <button onClick={() => ask(q)} disabled={busy || !q || !apiKey.trim()}>
             {busy ? "Working" : "Ask"}
           </button>
         </div>
