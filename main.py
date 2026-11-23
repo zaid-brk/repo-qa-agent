@@ -20,7 +20,7 @@ from pydantic import BaseModel
 
 from index_repo import index_repo
 from agent import ask_traced
-from store import collection_for, get_active_repo, get_repo_source, indexed_repos, repo_name_from_url
+from store import collection_for, get_active_repo, get_repo_source, is_indexed, repo_name_from_url
 from tools import _all_points
 from llm import user_key
 
@@ -69,7 +69,7 @@ def index(req: IndexReq, x_openai_key: str | None = Header(None)):
 @app.post("/ask")
 def ask_endpoint(req: AskReq, x_openai_key: str | None = Header(None)):
     use_key(x_openai_key)
-    if req.repo is not None and req.repo not in indexed_repos():
+    if req.repo is not None and not is_indexed(req.repo):
         raise HTTPException(400, f"Repo '{req.repo}' is not indexed. Index it first.")
     answer, trace = ask_traced(req.question, req.repo)
     return {"answer": link_citations(answer, req.repo or get_active_repo()), "trace": trace}
