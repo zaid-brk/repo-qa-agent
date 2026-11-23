@@ -84,6 +84,12 @@ def get_repo_source(repo_name: str) -> tuple[str, str] | None:
     return (points[0].payload["url"], points[0].payload["sha"]) if points else None
 
 
+def is_indexed(repo_name: str) -> bool:
+    """Check the collection, not indexed_repos(): collection names swap - for _,
+    so 'catalog-search' comes back from there as 'catalog_search'."""
+    return client.collection_exists(collection_for(repo_name))
+
+
 def indexed_repos() -> list[str]:
     """Repos that have vectors stored, newest-first ordering not guaranteed."""
     names = [c.name for c in client.get_collections().collections]

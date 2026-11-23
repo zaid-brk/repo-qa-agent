@@ -407,6 +407,20 @@ def test_api_spends_only_the_callers_key():
     print("✓ /index and /ask need the caller's key and spend only that key")
 
 
+def test_hyphenated_repo_counts_as_indexed():
+    """'catalog-search' is stored as chunks_catalog_search; /ask must still find it."""
+    import store
+    c = QdrantClient(":memory:")
+    c.create_collection("chunks_catalog_search", vectors_config=VectorParams(size=1, distance=Distance.COSINE))
+    orig, store.client = store.client, c
+    try:
+        assert store.is_indexed("catalog-search") and store.is_indexed("catalog_search")
+        assert not store.is_indexed("other-repo")
+    finally:
+        store.client = orig
+    print("✓ a repo with a hyphen in its name counts as indexed")
+
+
 def test_imports_without_key():
     """Every module must import with no OPENAI_API_KEY — models are lazy."""
     import answer, agent, tools, main  # noqa: F401
@@ -429,5 +443,6 @@ if __name__ == "__main__":
     test_collection_naming()
     test_qdrant_roundtrip()
     test_api_spends_only_the_callers_key()
+    test_hyphenated_repo_counts_as_indexed()
     test_imports_without_key()
     print("\nAll offline checks passed.")
