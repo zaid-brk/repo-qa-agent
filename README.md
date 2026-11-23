@@ -17,7 +17,7 @@ retrieval-augmented generation (RAG) upgraded to an agent that can search, list 
 read whole files across multiple hops, plus a 67-question evaluation harness that measures
 how accurate it actually is.
 
-**Live API:** https://repo-qa-agent.onrender.com/docs (FastAPI backend on Render, Qdrant Cloud as the vector store). It's offline right now because Qdrant deleted my free cluster after a stretch of inactivity. I'm setting up a new one and expect the API back soon (tracked in #13). Render's free tier also sleeps when idle, so the first request can take ~50s to wake up.
+**Live API:** https://repo-qa-agent.onrender.com/docs (FastAPI backend on Render, Qdrant Cloud as the vector store). Render's free tier sleeps when idle, so the first request can take ~50s to wake up.
 
 ## Demo
 
