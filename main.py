@@ -20,7 +20,7 @@ from pydantic import BaseModel
 
 from index_repo import index_repo
 from agent import ask_traced
-from store import collection_for, get_active_repo, get_repo_source, is_indexed, repo_name_from_url
+from store import collection_for, get_active_repo, get_repo_source, indexed_repos, is_indexed, repo_name_from_url
 from tools import _all_points
 from llm import user_key
 
@@ -109,3 +109,12 @@ def status():
         return {"repo": get_active_repo()}
     except RuntimeError as e:
         return {"repo": None, "detail": str(e)}
+
+
+@app.get("/health")
+def health():
+    """Keep-alive target for .github/workflows/keep-alive.yml. /status can answer
+    from active_repo.txt without touching Qdrant; this always makes one cheap
+    read, so the free cluster sees activity. A Qdrant outage is a 500."""
+    indexed_repos()
+    return {"ok": True}

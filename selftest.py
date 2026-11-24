@@ -459,6 +459,29 @@ def test_eval_stops_on_quota_and_keeps_results():
     print("✓ the eval stops on a quota error and keeps what it already paid for")
 
 
+def test_health_reads_qdrant():
+    """/health must hit Qdrant every time (the keep-alive workflow relies on it)
+    and fail loudly when Qdrant is down."""
+    from fastapi.testclient import TestClient
+    import main, store
+
+    class Down:
+        def get_collections(self):
+            raise RuntimeError("cluster suspended")
+
+    orig = store.client
+    try:
+        store.client = QdrantClient(":memory:")
+        r = TestClient(main.app).get("/health")
+        assert r.status_code == 200 and r.json() == {"ok": True}, r.text
+        store.client = Down()
+        r = TestClient(main.app, raise_server_exceptions=False).get("/health")
+        assert r.status_code == 500, r.status_code
+    finally:
+        store.client = orig
+    print("✓ /health reads Qdrant and fails when it's down")
+
+
 def test_imports_without_key():
     """Every module must import with no OPENAI_API_KEY — models are lazy."""
     import answer, agent, tools, main  # noqa: F401
@@ -483,5 +506,6 @@ if __name__ == "__main__":
     test_api_spends_only_the_callers_key()
     test_hyphenated_repo_counts_as_indexed()
     test_eval_stops_on_quota_and_keeps_results()
+    test_health_reads_qdrant()
     test_imports_without_key()
     print("\nAll offline checks passed.")
