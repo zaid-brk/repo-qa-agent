@@ -89,7 +89,10 @@ known limitation of the pattern; using a judge stronger than the agent keeps it 
 `eval/run_eval.py` runs the whole thing and reports accuracy overall, per repo and per question
 type. `--runs 3` asks every question three times and only counts it if all three pass, since a
 wrong answer that shows up one time in three is still a bug. It also checks whether each answer
-cites the right file, and records tool calls and seconds per answer.
+cites the right file, and records tool calls, seconds and measured dollar cost per answer.
+Results save after every question, and a quota or auth error stops the run instead of being
+scored as a wrong answer. `--ids`, `--out` and `--max-usd` run a subset, write it to its own
+file and stop at a spend cap.
 `--naive` runs the same questions through plain single-shot RAG, so the agent's multi-hop
 advantage is measured, not assumed. Tuning happens one variable at a time and every run is
 recorded in `eval/tuning_log.md`. That log is the evidence behind any accuracy number.
@@ -120,22 +123,33 @@ force cross-file reasoning, where retrieve-once should start to fail. I'm report
 It was worse than saturated: it scored 50/50 while the agent was answering two real questions
 wrong (see `eval/tuning_log.md`, run 2). That's why the benchmark grew.
 
-### Harder 67-question benchmark (partial)
+### Harder 67-question benchmark
 
-Agent only, 3 runs per question. The run stopped at question 44 when the API account ran out
-of credits, so this covers 50 of the 67 questions (all of requests and click, part of flask):
+All 67 questions, 3 runs each, pass = all 3 runs correct. Same models as above, judged by
+gpt-4o (`eval/results.json`, `eval/results_naive.json`):
 
-| | Agent |
-|---|---|
-| Passed all 3 runs | 50/50 |
-| Cross-file questions | 7/7 |
-| Mean tool calls per answer | 1.8 |
+| | Naive RAG | Agent |
+|---|---|---|
+| Passed all 3 runs | 67/67 | 67/67 |
+| Cross-file questions | 12/12 | 12/12 |
+| Flaky questions | none | none |
+| Answer cites an expected file | 99/162 (61%) | 135/162 (83%) |
+| Cites an expected file, cross-file only | 18/36 | 34/36 |
+| Mean tool calls per answer | 0 | 2.5 (3.7 on cross-file) |
+| Mean seconds per answer | 2.3 | 5.8 |
+| Measured cost per answer, judge included | $0.0006 | $0.0019 |
 
-The new eval found one bug before it stopped: on itsdangerous, "what are the main classes?"
-made the agent read whole files until it overflowed the model's 128k-token context and
-crashed (issue #15). That's fixed by the paging and step limit above, and `find_symbol` now
-answers that question directly. Still to run: the remaining 17 questions, and the naive baseline on the
-cross-file set, which is the comparison that shows whether multi-hop retrieval earns its cost.
+Naive RAG passes the cross-file questions too, so the harder set is still too easy to separate
+the two on accuracy. The only measured difference is that the agent names the file the answer
+lives in far more often, at about three times the cost and two and a half times the latency.
+The cross-file questions need to span more files, or ask for details that never appear in a
+single top-5 retrieval, before accuracy shows whether multi-hop retrieval earns its cost.
+
+The eval found two bugs on the way. On itsdangerous, "what are the main classes?" made the
+agent read whole files until it overflowed the model's 128k-token context (issue #15); that's
+fixed by the paging and step limit above, and `find_symbol` now answers it in one call. And
+two `find_symbol` calls in parallel could crash the agent on Python 3.11.7 (a CPython race in
+`ast.parse`); `find_symbol` now parses under a lock.
 
 ## Running it
 
