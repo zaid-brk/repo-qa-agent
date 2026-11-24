@@ -178,3 +178,4 @@ CLI scripts like `index_repo.py` or the eval.
 | `frontend/` | Minimal Next.js chat UI. |
 | `llm.py` | Model choices in one place (agent, judge, embeddings). |
 | `selftest.py` | Offline checks for everything that doesn't need an API key. |
+| `.github/workflows/keep-alive.yml` | Pings `/health` three times a week so Qdrant doesn't suspend the free cluster. |
