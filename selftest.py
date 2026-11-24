@@ -421,6 +421,44 @@ def test_hyphenated_repo_counts_as_indexed():
     print("✓ a repo with a hyphen in its name counts as indexed")
 
 
+def test_eval_stops_on_quota_and_keeps_results():
+    """A 429 insufficient_quota mid-run stops the eval and keeps finished questions."""
+    import json, sys
+    import httpx
+    from openai import RateLimitError
+    sys.path.insert(0, "eval")
+    import agent, run_eval
+    calls = []
+
+    def fake_ask(q):
+        calls.append(q)
+        if len(calls) > 2:   # question 1 (2 runs) answers, question 2 hits the quota
+            raise RateLimitError("insufficient_quota", body=None,
+                                 response=httpx.Response(429, request=httpx.Request("POST", "http://x")))
+        return "answer", []
+
+    class Judge:
+        def invoke(self, prompt):
+            return type("R", (), {"content": "CORRECT"})()
+
+    orig = (agent.ask_traced, run_eval.get_judge, run_eval.ensure_indexed, run_eval.set_active_repo)
+    agent.ask_traced, run_eval.get_judge = fake_ask, Judge
+    run_eval.ensure_indexed = run_eval.set_active_repo = lambda repo: None
+    try:
+        with tempfile.TemporaryDirectory() as d:
+            out = Path(d) / "r.json"
+            run_eval.run(runs=2, ids={1, 2, 3}, out=out)
+            saved = json.loads(out.read_text())
+    finally:
+        agent.ask_traced, run_eval.get_judge, run_eval.ensure_indexed, run_eval.set_active_repo = orig
+    assert [r["id"] for r in saved] == [1] and saved[0]["correct"], saved
+    assert len(calls) == 3, calls   # question 3 never asked
+    usd = run_eval.cost({"gpt-4o-2024-08-06": {"input_tokens": 1e6, "output_tokens": 1e5},
+                         "gpt-4o-mini-2024-07-18": {"input_tokens": 1e6, "output_tokens": 0}})
+    assert usd == {"gpt-4o": 3.5, "gpt-4o-mini": 0.15}, usd
+    print("✓ the eval stops on a quota error and keeps what it already paid for")
+
+
 def test_health_reads_qdrant():
     """/health must hit Qdrant every time (the keep-alive workflow relies on it)
     and fail loudly when Qdrant is down."""
@@ -467,6 +505,7 @@ if __name__ == "__main__":
     test_qdrant_roundtrip()
     test_api_spends_only_the_callers_key()
     test_hyphenated_repo_counts_as_indexed()
+    test_eval_stops_on_quota_and_keeps_results()
     test_health_reads_qdrant()
     test_imports_without_key()
     print("\nAll offline checks passed.")

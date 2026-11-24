@@ -5,6 +5,7 @@ search again with a better query, list what files exist, or read a whole file
 when chunks aren't enough. That's multi-hop retrieval.
 """
 import ast
+import threading
 
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
@@ -107,6 +108,12 @@ def list_files(config: RunnableConfig) -> str:
 
 MAX_SYMBOLS = 200
 
+# Older CPython keeps ast.parse's recursion counter in interpreter-wide state
+# (cpython gh-106905), so two find_symbol calls in parallel (langgraph runs a turn's
+# tool calls in threads) can raise "SystemError: AST constructor recursion depth
+# mismatch". Seen in eval run 4 on 3.11.7. One lock costs nothing at this size.
+_parse_lock = threading.Lock()
+
 
 @tool
 def find_symbol(config: RunnableConfig, name: str = "") -> str:
@@ -124,7 +131,8 @@ def find_symbol(config: RunnableConfig, name: str = "") -> str:
     for path, parts in sorted(chunks.items()):
         parts.sort(key=lambda c: c.get("chunk_index", 0))
         try:
-            tree = ast.parse(join_chunks([(c.get("start"), c["text"]) for c in parts]))
+            with _parse_lock:
+                tree = ast.parse(join_chunks([(c.get("start"), c["text"]) for c in parts]))
         except (SyntaxError, ValueError):
             continue
         stack = [(tree, "")]
